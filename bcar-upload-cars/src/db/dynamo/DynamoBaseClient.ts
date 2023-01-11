@@ -1,5 +1,6 @@
 
 import {
+  AttributeValue,
   BatchWriteItemCommand,
   BatchWriteItemCommandInput,
   DeleteItemCommand,
@@ -16,65 +17,79 @@ import {
   QueryCommandInput,
   ScanCommand,
   ScanCommandInput,
-} from "@aws-sdk/client-dynamodb";
+} from "@aws-sdk/client-dynamodb"
+import { ResponseError } from "../../errors"
 import { chunk } from "../../utils/index"
 
 export class DynamoBaseClient {
-  client: DynamoDBClient;
+  client: DynamoDBClient
 
   constructor(region: string) {
-    this.client = new DynamoDBClient({ region }); // 'ap-northeast-2'
+    this.client = new DynamoDBClient({ region })
   }
 
-  async describeTable(tableName: string) {
-    const command = new DescribeTableCommand({ TableName: tableName });
-    return this.client.send(command);
+  describeTable(tableName: string) {
+    return this.client.send(new DescribeTableCommand({ TableName: tableName }))
   }
 
-  async putItem(input: PutItemCommandInput) {
-    return this.client.send(new PutItemCommand(input));
+  putItem(input: PutItemCommandInput) {
+    return this.client.send(new PutItemCommand(input))
   }
 
   async scanItems(input: ScanCommandInput) {
-    return this.client.send(new ScanCommand(input));
+    const result = await this.client.send(new ScanCommand(input))
+    if (result.$metadata.httpStatusCode !== 200) throw new ResponseError(`${result.$metadata}`)
+    return result
   }
 
-  async queryItems(input: QueryCommandInput) {
-    return this.client.send(new QueryCommand(input));
+  async segmentScan(input: ScanCommandInput) {
+    let results: Record<string, AttributeValue>[] = []
+    while (true) {
+      const result = await this.scanItems(input)
+      if (result.$metadata.httpStatusCode !== 200) throw new ResponseError(`${result.$metadata}`)
+      results = [...results, ...result.Items!]
+      if (!result.LastEvaluatedKey) break
+      input.ExclusiveStartKey = result.LastEvaluatedKey
+    }
+    return results
   }
 
-  async executeStatement(input: ExecuteStatementCommandInput) {
+  queryItems(input: QueryCommandInput) {
+    return this.client.send(new QueryCommand(input))
+  }
+
+  executeStatement(input: ExecuteStatementCommandInput) {
     return this.client.send(new ExecuteStatementCommand(input))
   }
 
-  async batchWriteItem(input: BatchWriteItemCommandInput) {
+  batchWriteItem(input: BatchWriteItemCommandInput) {
     return this.client.send(new BatchWriteItemCommand(input))
   }
 
-  async deleteItems(input: DeleteItemCommandInput) {
+  deleteItems(input: DeleteItemCommandInput) {
     return this.client.send(new DeleteItemCommand(input))
   }
 
-  async batchPutItems(tableName: string, ...putRequestInputs: PutRequest[]) {
+  batchPutItems(tableName: string, ...putRequestInputs: PutRequest[]) {
     const input = putRequestInputs.map(input=>({ PutRequest: input }))
     const responses = chunk(input, 25).map(putRequests => {
       return this.batchWriteItem({
         RequestItems: {
           [tableName]: putRequests
         }
-      });
+      })
     })
     return Promise.all(responses)
   }
 
-  async batchDeleteItems(tableName: string, ...deleteRequestInputs: DeleteRequest[]) {
+  batchDeleteItems(tableName: string, ...deleteRequestInputs: DeleteRequest[]) {
     const input = deleteRequestInputs.map(input=>({ DeleteRequest: input }))
     const responses = chunk(input, 25).map(putRequests => {
       return this.batchWriteItem({
         RequestItems: {
           [tableName]: putRequests
         }
-      });
+      })
     })
     return Promise.all(responses)
   }

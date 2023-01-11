@@ -17,10 +17,10 @@ export class CategoryService {
     const carManufacturerMap = this.categoryCrawler.carManufacturerMap
     const carSegmentMap = this.categoryCrawler.carSegmentMap
 
-    const carSegmentResult = await this.dynamoCategoryClient.saveCarSegment(carSegmentMap)
-    const carManufacturerResult = await this.dynamoCategoryClient.saveCarManufacturer(carManufacturerMap)
-    const carModelResult = await this.dynamoCategoryClient.saveCarModel(carManufacturerMap)
-    const carDetailResult = await this.dynamoCategoryClient.saveCarDetailModel(carManufacturerMap)
+    const carSegmentResult = await this.dynamoCategoryClient.saveSegments(carSegmentMap)
+    const carManufacturerResult = await this.dynamoCategoryClient.saveCompanies(carManufacturerMap)
+    const carModelResult = await this.dynamoCategoryClient.saveModels(carManufacturerMap)
+    const carDetailResult = await this.dynamoCategoryClient.saveDetailModels(carManufacturerMap)
 
     carSegmentResult.forEach(r => console.log(r))
     carManufacturerResult.forEach(r => console.log(r))

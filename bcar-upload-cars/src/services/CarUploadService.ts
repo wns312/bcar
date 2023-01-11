@@ -137,16 +137,16 @@ export class CarUploadService {
   }
 
   private async initializeMaps() {
-    const segmentResult = await this.dynamoCategoryClient.getAllCarSegments()
-    const segmentMap = this.createSegmentMap(segmentResult.items)
-    const companyResult = await this.dynamoCategoryClient.getAllCarCompanies()
-    const companyMap = this.createCompanyMap(companyResult.items)
+    const segmentResult = await this.dynamoCategoryClient.scanSegment()
+    const segmentMap = this.createSegmentMap(segmentResult)
+    const companyResult = await this.dynamoCategoryClient.scanCompany()
+    const companyMap = this.createCompanyMap(companyResult)
 
-    const carModelResult = await this.dynamoCategoryClient.getAllCarModels()
-    await this.fillCarModelMap(companyMap, carModelResult.items)
+    const carModelResult = await this.dynamoCategoryClient.scanModel()
+    await this.fillCarModelMap(companyMap, carModelResult)
 
-    const carDetailResult = await this.dynamoCategoryClient.getAllCarDetails(2)
-    this.fillCarDetails(companyMap, carDetailResult.items)
+    const carDetailResult = await this.dynamoCategoryClient.scanDetailModel(2)
+    this.fillCarDetails(companyMap, carDetailResult)
     return {
       segmentMap,
       companyMap
@@ -159,14 +159,14 @@ export class CarUploadService {
   // 이 경우에도 차량 등록 내용을 갱신해주어야 한다.
   async uploadCars(loginUrl: string, registerUrl: string, workerAmount: number, carAmount: number) {
     console.log("데이터 조회 시작");
-    const result = await this.dynamoCarClient.getSomeCars()  // 여기가 되게 오래 걸림
-    // let result = await this.dynamoCarClient.getAllCars(10)
+    const result = await this.dynamoCarClient.scanCar()  // 여기가 되게 오래 걸림
+    // let result = await this.dynamoCarClient.segmentScan(10)
 
     const { id: testId, pw: testPw } = await this.sheetClient.getTestAccount()
     const { segmentMap, companyMap } = await this.initializeMaps()  // 여기도 약간 오래걸림
 
     console.log("차량 객체 생성 및 분류 시작");
-    const cars = CarUploadService.createCarObject(result.items.slice(0, carAmount))
+    const cars = CarUploadService.createCarObject(result.slice(0, carAmount))
     const carClassifier = new CarClassifier(cars, segmentMap, companyMap)
     const classifiedCars = carClassifier.classifyAll()
 

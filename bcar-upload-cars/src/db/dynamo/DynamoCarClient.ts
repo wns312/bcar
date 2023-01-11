@@ -1,12 +1,11 @@
-import { AttributeValue } from "@aws-sdk/client-dynamodb";
-import { DynamoBaseClient } from "."
-import { ResponseError } from "../../errors"
-
+import { DynamoBaseClient } from "./DynamoBaseClient"
 
 export class DynamoCarClient {
   baseClient: DynamoBaseClient;
   tableName: string;
   indexName: string;
+
+  static carPrefix = "#CAR-"
 
   constructor(region: string, tableName: string, indexName: string) {
     this.baseClient = new DynamoBaseClient(region);
@@ -14,75 +13,45 @@ export class DynamoCarClient {
     this.indexName = indexName;
   }
 
-  // baseClient로 아마도 옮겨질 메소드
-  private async getAllCarsSegment(segment: number, segmentSize: number, exclusiveStartKey?:Record<string, AttributeValue>) {
-    const scanCommandInput = {
+  private async scan(PK: string, SK: string) {
+    const result = await this.baseClient.scanItems({
       TableName: this.tableName,
-      FilterExpression: "begins_with(SK, :s) and begins_with(PK, :p)",
+      FilterExpression: `begins_with(PK, :p) and begins_with(SK, :s)`,
       ExpressionAttributeValues: {
-        ":p": { S: `#CAR` },
-        ":s": { S: `#CAR` },
-      },
-      Segment: segment,
-      TotalSegments: segmentSize,
-      ExclusiveStartKey: exclusiveStartKey
-    }
-    const result = await this.baseClient.scanItems(scanCommandInput)
-
-    if (result.$metadata.httpStatusCode !== 200) {
-      throw new ResponseError(`${result.$metadata}`)
-    }
-
-    let resultObj = {
-      items: result.Items ? result.Items : [],
-      count: result.Count!
-    }
-
-    if (result.LastEvaluatedKey) {
-      const additionalItems = await this.getAllCarsSegment(segment, segmentSize, result.LastEvaluatedKey)
-      resultObj.items = [...resultObj.items, ...additionalItems.items]
-      resultObj.count += additionalItems.count
-    }
-    return resultObj
+        ":p": { S: PK },
+        ":s": { S: SK },
+      }
+    })
+    return result.Items!
   }
 
-  async getAllCars(segmentSize: number) {
-    const promiseList: Promise<{items: Record<string, AttributeValue>[], count: number}>[] = []
-    for (let segmentIndex = 0; segmentIndex  < segmentSize; segmentIndex++) {
-      promiseList.push(this.getAllCarsSegment(segmentIndex, segmentSize))
+  private async segmentScan(PK: string, SK: string, segmentSize: number) {
+    const resultsListPromise = []
+    for (let i = 0; i < segmentSize; i++) {
+      const results = this.baseClient.segmentScan({
+        TableName: this.tableName,
+        FilterExpression: "begins_with(SK, :s) and begins_with(PK, :p)",
+        ExpressionAttributeValues: {
+          ":p": { S: PK },
+          ":s": { S: SK },
+        },
+        Segment: i,
+        TotalSegments: segmentSize,
+      })
+      resultsListPromise.push(results)
     }
-    const results = await Promise.all(promiseList)
-
-    return results.reduce((obj, resultObj)=>{
-      return { items: [...obj.items, ...resultObj.items], count: obj.count + resultObj.count}
-      }, { items: [], count: 0})
+    const resultsList = await Promise.all(resultsListPromise)
+    return resultsList.flat()
   }
 
-  // for test : 용량을 덜 사용하기 위함
-  async getSomeCars() {
-    const scanCommandInput = {
-      TableName: this.tableName,
-      FilterExpression: "begins_with(SK, :s) and begins_with(PK, :p)",
-      ExpressionAttributeValues: {
-        ":p": { S: `#CAR` },
-        ":s": { S: `#CAR` },
-      },
-    }
-    const result = await this.baseClient.scanItems(scanCommandInput)
+  async scanCar() {
+    return this.scan(DynamoCarClient.carPrefix, DynamoCarClient.carPrefix)
+  }
 
-    if (result.$metadata.httpStatusCode !== 200) {
-      throw new ResponseError(`${result.$metadata}`)
-    }
-
-
-    return {
-      items: result.Items ? result.Items : [],
-      count: result.Count!
-    }
+  segmentScanCar(segmentSize: number) {
+    return this.segmentScan(DynamoCarClient.carPrefix, DynamoCarClient.carPrefix, segmentSize)
   }
 }
-
-
 
   // getCar(carNum: string) {
   //   return this.baseClient.queryItems({

@@ -1,11 +1,10 @@
 import { PutRequest } from "@aws-sdk/client-dynamodb";
 import { CarManufacturer, CarSegment } from "../../../types"
 
-
 export class CategoryFormatter {
   private constructor(){}
 
-  static createSegmentForm(segmentMap: Map<string, CarSegment>) {
+  static createSegmentForm(segmentMap: Map<string, CarSegment>): PutRequest[] {
     return Array.from(segmentMap.keys()).map(k =>{
       const segObj = segmentMap.get(k)
       return {
@@ -20,7 +19,7 @@ export class CategoryFormatter {
     })
   }
 
-  static createManufacturerForm(companyMap: Map<string, CarManufacturer>) {
+  static createManufacturerForm(companyMap: Map<string, CarManufacturer>): PutRequest[] {
     return Array.from(companyMap.keys()).map(k =>{
       const companyObj = companyMap.get(k)
       return {
@@ -36,7 +35,7 @@ export class CategoryFormatter {
     })
   }
 
-  static createCarModelForm(companyMap: Map<string, CarManufacturer>) {
+  static createCarModelForm(companyMap: Map<string, CarManufacturer>): PutRequest[] {
     const companyKeys = Array.from(companyMap.keys())
     const carModelList: PutRequest[] = []
 
@@ -69,7 +68,7 @@ export class CategoryFormatter {
     return carModelList
   }
 
-  static createCarDetailModelForm(companyMap: Map<string, CarManufacturer>) {
+  static createCarDetailModelForm(companyMap: Map<string, CarManufacturer>): PutRequest[] {
     const companyKeys = Array.from(companyMap.keys())
     const carDetailModelList: PutRequest[] = []
 
