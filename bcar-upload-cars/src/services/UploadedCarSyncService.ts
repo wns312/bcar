@@ -1,86 +1,86 @@
+import { Page } from "puppeteer"
+import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { BrowserInitializer, CarSynchronizer } from "../puppeteer"
-import { AccountSheetClient, DynamoCarClient, DynamoUploadedCarClient, KCRURLSheetClient } from "../db"
+import { SheetClient, DynamoCarClient, DynamoUploadedCarClient,  } from "../db"
 import { Account, KCRURL } from "../types"
+import { delay } from "../utils"
 
 export class UploadedCarSyncService {
 
   constructor(
-    private dynamoCarClient: DynamoCarClient,
     private dynamoUploadedCarClient: DynamoUploadedCarClient,
-    private accountSheetClient: AccountSheetClient,
-    private KCRSheetClient: KCRURLSheetClient,
+    private sheetClient: SheetClient,
     private initializer: BrowserInitializer,
   ) {}
 
-  private async getExistingUpdatedCarMap() {
-    const [carResults, updatedCarResults] = await Promise.all([
-      this.dynamoCarClient.segmentScan(10),
-      this.dynamoUploadedCarClient.segmentScan(10)
-    ])
-
-    const carResultMap = carResults.reduce((map, item)=>
-      map.set(item.PK.S!, item.Title.S!),
-      new Map<string, string>()
-    )
-
-    // 여기서 실제 존재하는 차량만 걸러진다.
-    // carResultMap에 있는 차량이라는 것은 유지되어야 할 차량이라는 것을 의미하기 때문.
-    const updatedCarResultMap = updatedCarResults.reduce((map, item)=>
-      carResultMap.get(item.SK.S!) ? map.set(item.SK.S!.replace("#CAR-", ""), item.PK.S!) : map,
-      new Map<string, string>()
-    )
-
-    return Array.from(updatedCarResultMap.entries()).reduce((map, [car, userPk])=>{
-      const user = userPk.replace('#USER-', '')
-      const carList = map.get(user)
-      return map.set(user, carList ? [...carList, car]: [car])
-    }, new Map<string, string[]>())
+  /*
+   * Private methods
+  */
+  private async getUserCars(id: string): Promise<string[]> {
+    const updateCarsResult = await this.dynamoUploadedCarClient.queryById(id)
+    if (updateCarsResult.$metadata.httpStatusCode !== 200) {
+      console.error(updateCarsResult);
+      throw new Error("Response is not 200");
+    }
+    return updateCarsResult.Items ? updateCarsResult.Items.map(item=>item.SK.S!.replace("#CAR-", "")) : []
   }
 
-  private filterUsers(existingCarMap: Map<string, string[]>, allUsers: Account[]) {
-    const userIds = Array.from(existingCarMap.keys())
-    return allUsers.filter(user=>userIds.includes(user.id))
+  private async getAccountMap() {
+    const allUsers = await this.sheetClient.getAccounts()
+    return allUsers.reduce((map, user)=>map.set(user.id, user), new Map<string, Account>())
   }
 
-  async execute() {
-    const [existingCarMap, allUsers, allURL] = await Promise.all([
-      this.getExistingUpdatedCarMap(),
-      this.accountSheetClient.getAccounts(),
-      this.KCRSheetClient.getAll(),
+  private async getURLMap() {
+    const allUrls = await this.sheetClient.getKcrs()
+    return allUrls.reduce((map, urlObj)=>map.set(urlObj.region, urlObj), new Map<string, KCRURL>())
+  }
+
+  /*
+   * Public Methods
+  */
+  async syncCarsByEnv() {
+    const kcrId = process.env.KCR_ID
+    if (!kcrId) {
+      throw new Error("No id env");
+    }
+    await this.syncCarsById(kcrId)
+  }
+
+
+  async syncCarsById(id: string) {
+    const [userCars, userMap, urlMap] = await Promise.all([
+      this.getUserCars(id),
+      this.getAccountMap(),
+      this.getURLMap(),
     ])
-    console.log(existingCarMap);
 
-    const urlMap = new Map<string, KCRURL>(
-      allURL.map(obj=>[obj.region, obj])
-    )
+    const user = userMap.get(id)
+    if (!user) throw new Error("No user");
 
-    const filteredUsers = this.filterUsers(existingCarMap, allUsers)
-    console.log(existingCarMap);
-    console.log(filteredUsers);
+    const { pw, region } = user
 
-    await this.initializer.initializeBrowsers(filteredUsers.length)
+    const urlObj = urlMap.get(region)
+    if (!urlObj) throw new Error("No KCR URL");
+    const { loginUrl, manageUrl } = urlObj
+
+    await this.initializer.initializeBrowsers(1)
     const page = this.initializer.pageList[0]
     await this.initializer.activateEvents(page)
     await page.on("dialog", async (dialog)=>{
       await dialog.accept()
     })
+    await this.initializer.login(page, loginUrl + manageUrl, id, pw)
 
-    const deletedCarNumsPromises = filteredUsers.map(async ({id, pw, region})=> {
-      const kcrUrl = urlMap.get(region)
-      if (!kcrUrl) throw new Error("No KCR URL")
-      const { loginUrl, manageUrl } = kcrUrl
+    const synchronizer = new CarSynchronizer(page, manageUrl, userCars)
+    const existingCarNums = await synchronizer.sync()
+    console.log("existingCarNums", existingCarNums);
 
-      await this.initializer.login(page, loginUrl + manageUrl, id, pw)
-      const existingCars = existingCarMap.get(id)!
-
-      const synchronizer = new CarSynchronizer(page, manageUrl, existingCars)
-      const deletedCarNums = await synchronizer.sync()
-      if (!deletedCarNums.length) return
-
-      this.dynamoUploadedCarClient.batchDelete(id, deletedCarNums)
-    })
-
-    await Promise.all(deletedCarNumsPromises)
+    await delay(1000)
     await this.initializer.closePages()
+
+    if (existingCarNums.length) {
+      await this.dynamoUploadedCarClient.batchSave(id, existingCarNums, true)
+    }
   }
+
 }

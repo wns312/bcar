@@ -6,7 +6,7 @@
   "scripts": {
     "start": "docker compose exec crawler-arm64 node /app/dist/src/index.js",
     "start:amd64": "docker compose exec crawler-amd64 node /app/dist/src/index.js",
-    "start:local": "set -a && source env/.env && set +a && node dist/src/index.js",
+    "start:local": "set -a && source env/.env  && source env/aws.env && set +a && node dist/src/index.js",
     "build": "tsc && docker compose build crawler-arm64",
     "build:amd64": "tsc && docker compose build  crawler-amd64",
     "build:all": "tsc && docker compose build",

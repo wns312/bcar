@@ -1,21 +1,27 @@
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from "fs/promises"
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
-import { BrowserInitializer, CarClassifier, CarUploader } from "../puppeteer"
-import { AccountSheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "../db"
-import { CarDataObject, CarDetailModel, CarModel, CarSegment, CarManufacturer, ManufacturerOrigin, UploadSource } from "../types"
+import { Page } from "puppeteer"
+import { BrowserInitializer, CarUploader } from "../puppeteer"
+import { SheetClient, DynamoCarClient, DynamoUploadedCarClient } from "../db"
+import { Account, CarDataObject, KCRURL, UploadSource } from "../types"
+import { CarClassifier, CategoryInitializer, chunk } from "../utils"
 
 export class CarUploadService {
+
+  _accountMap: Map<string, Account> | undefined
+  _urlMap: Map<string, KCRURL> | undefined
+
   constructor(
-    private sheetClient: AccountSheetClient,
+    private sheetClient: SheetClient,
     private dynamoCarClient: DynamoCarClient,
-    private dynamoCategoryClient: DynamoCategoryClient,
     private dynamoUploadedCarClient: DynamoUploadedCarClient,
     private initializer: BrowserInitializer,
+    private categoryInitializer: CategoryInitializer,
   ) {}
 
   // uploadCars 빼고 전부 이동되어야 할 메소드
-  static createCarObject(items: Record<string, AttributeValue>[]): CarDataObject[] {
+  private static createCarObject(items: Record<string, AttributeValue>[]): CarDataObject[] {
     return items.map(item=>{
       return {
         PK: item.PK.S!,
@@ -43,208 +49,110 @@ export class CarUploadService {
     })
   }
 
-  private createSegmentMap(items: Record<string, AttributeValue>[]): Map<string, CarSegment> {
-    const segmentMap = new Map<string, CarSegment>()
-    items.reduce((map, item)=>{
-      return map.set(item.name.S!, {
-        name: item.name.S!,
-        value: item.value.S!,
-        index: Number.parseInt(item.index.N!),
-      })
-    }, segmentMap)
-    return segmentMap
-  }
-
-  private createCompanyMap(items: Record<string, AttributeValue>[]): Map<string, CarManufacturer> {
-    const manufacturerMap = new Map<string, CarManufacturer>()
-    items.reduce((map, item)=>{
-      return map.set(item.name.S!, {
-        origin: item.origin.S! === "DOMESTIC" ? ManufacturerOrigin.Domestic : ManufacturerOrigin.Imported,
-        name: item.name.S!,
-        dataValue: item.value.S!,
-        index: Number.parseInt(item.index.N!),
-        carModelMap: new Map<string, CarModel>()
-      })
-    }, manufacturerMap)
-    return manufacturerMap
-  }
-
-  private fillCarModelMap(
-    companyMap: Map<string, CarManufacturer>, items: Record<string, AttributeValue>[]
-  ): Map<string, CarManufacturer> {
-
-    items.reduce((map, item)=>{
-      const carManufacturer = map.get(item.company.S!)
-      if (!carManufacturer) {
-        console.log(item.company.S!);
-        throw new Error("There is no proper carModelMap")
-      }
-      const detailModels: CarDetailModel[] = []
-      let carModelName = item.name.S!
-      carModelName = carModelName === "봉고화물" ? "봉고" : carModelName
-      carModelName = carModelName === "e-마이티" ? "마이티" : carModelName
-      carModelName = carModelName === "캡처" ? "캡쳐" : carModelName
-      carManufacturer.carModelMap.set(carModelName, {
-        carSegment: item.segment.S!,
-        name: item.name.S!,
-        dataValue: item.value.S!,
-        index: Number.parseInt(item.index.N!),
-        detailModels
-      })
-      return map
-    }, companyMap)
-    return companyMap
-  }
-
-  private fillCarDetails(
-    companyMap: Map<string, CarManufacturer>, items: Record<string, AttributeValue>[]
-  ): Map<string, CarManufacturer> {
-
-    items.reduce((map, item)=>{
-      const carManufacturer = map.get(item.company.S!)
-      if (!carManufacturer) {
-        console.log(item.company.S!);
-        throw new Error("There is no proper carModelMap")
-      }
-
-      let carModelName = item.SK.S!.replace("#MODEL-", "")
-      carModelName = carModelName === "봉고화물" ? "봉고" : carModelName
-      carModelName = carModelName === "e-마이티" ? "마이티" : carModelName
-      carModelName = carModelName === "캡처" ? "캡쳐" : carModelName
-      const carModel = carManufacturer.carModelMap.get(carModelName)
-      if (!carModel) {
-        console.log(carModelName);
-        throw new Error("There is no proper carModel")
-      }
-
-      carModel.detailModels!.push({
-        name: item.name.S!,
-        dataValue: item.value.S!,
-        index: Number.parseInt(item.index.N!),
-      })
-      return map
-    }, companyMap)
-    // index 순서로 detail 재정렬
-
-    companyMap.forEach(company=>{
-      company.carModelMap.forEach(model=>{
-        model.detailModels = model.detailModels!.sort((a, b)=>{
-          return a.index - b.index
-        })
-      })
-    })
-    return companyMap
-  }
-
-  private async initializeMaps() {
-    const segmentResult = await this.dynamoCategoryClient.scanSegment()
-    const segmentMap = this.createSegmentMap(segmentResult)
-    const companyResult = await this.dynamoCategoryClient.scanCompany()
-    const companyMap = this.createCompanyMap(companyResult)
-
-    const carModelResult = await this.dynamoCategoryClient.scanModel()
-    await this.fillCarModelMap(companyMap, carModelResult)
-
-    const carDetailResult = await this.dynamoCategoryClient.scanDetailModel(2)
-    this.fillCarDetails(companyMap, carDetailResult)
-    return {
-      segmentMap,
-      companyMap
+  private async getUserCars(id: string): Promise<CarDataObject[]> {
+    const updateCarsResult = await this.dynamoUploadedCarClient.queryByIdFilteredByIsUploaded(id, false)
+    if (updateCarsResult.$metadata.httpStatusCode !== 200) {
+      console.error(updateCarsResult);
+      throw new Error("Response is not 200");
     }
+    if (!updateCarsResult.Items!.length) {
+      return []
+    }
+
+    const userCars = await this.dynamoCarClient.getCarsByIds(updateCarsResult.Items!.map(item=>item.SK.S!))
+    const cars = CarUploadService.createCarObject(userCars)
+    return cars
   }
 
-  // 작업 전, 후로 DB를 조회해서 이미 등록된 차량, 마감된 차량에 대한 처리를 해야한다.
-  // 10개까지 사용한 경우에 ip가 차단되었음. (하나의 ip에서의 과도한 트래픽 발생이 가장 중요한 원인. max browser 3~5개)
-  // 차량을 더이상 등록할 수 없는 경우 위의 이벤트 리스너를 통해서 실행을 종료한다.
-  // 이 경우에도 차량 등록 내용을 갱신해주어야 한다.
-  async uploadCars(loginUrl: string, registerUrl: string, workerAmount: number, carAmount: number) {
-    console.log("데이터 조회 시작");
-    const result = await this.dynamoCarClient.scanCar()  // 여기가 되게 오래 걸림
-    // let result = await this.dynamoCarClient.segmentScan(10)
+  private async getAccountMap() {
+    if (!this._accountMap) {
+      const allUsers = await this.sheetClient.getAccounts()
+      this._accountMap = new Map<string, Account>(allUsers.map(user=>[user.id, user]))
+    }
+    return this._accountMap!
+  }
 
-    const { id: testId, pw: testPw } = await this.sheetClient.getTestAccount()
-    const { segmentMap, companyMap } = await this.initializeMaps()  // 여기도 약간 오래걸림
+  private async getURLMap() {
+    if (!this._urlMap) {
+      const allUrls = await this.sheetClient.getKcrs()
+      this._urlMap = new Map<string, KCRURL>(allUrls.map(urlObj=>[urlObj.region, urlObj]))
+    }
+    return this._urlMap!
+  }
 
-    console.log("차량 객체 생성 및 분류 시작");
-    const cars = CarUploadService.createCarObject(result.slice(0, carAmount))
+  private async execute(
+    page: Page, {id, pw}: Account, { loginUrl, registerUrl }: KCRURL, chunkCars: UploadSource[]
+  ) {
+    await this.initializer.login(page, loginUrl + registerUrl, id, pw)
+
+    const carUploader = new CarUploader(page, id, registerUrl, chunkCars)
+    await carUploader.uploadCars()
+    const { succeededSources, failedSources } = carUploader
+    if (!succeededSources.length) {
+      console.log("No succeededSources to save");
+      return
+    }
+    const responses = await this.dynamoUploadedCarClient.batchSave(
+      id,
+      succeededSources.map(source=>source.car.carNumber),
+      true
+    )
+    responses.forEach(r=>{ console.log(r) })
+  }
+
+  async uploadCarByEnv(worker: number = 3) {
+    const kcrId = process.env.KCR_ID
+    if (!kcrId) {
+      throw new Error("No id env");
+    }
+    await this.uploadCarById(kcrId, worker)
+  }
+
+  async uploadCarById(id: string, worker: number = 3) {
+    const [cars, { segmentMap, companyMap }, userMap, urlMap] = await Promise.all([
+      this.getUserCars(id),
+      this.categoryInitializer.initializeMaps(),
+      this.getAccountMap(),
+      this.getURLMap(),
+    ])
+    if (!cars.length) {
+      console.log("Nothing to upload. end execution", id)
+      return
+    }
+
+    const user = userMap.get(id)
+    if (!user) throw new Error("No user");
+    const urlObj = urlMap.get(user.region)
+    if (!urlObj) throw new Error("No KCR URL");
+
     const carClassifier = new CarClassifier(cars, segmentMap, companyMap)
     const classifiedCars = carClassifier.classifyAll()
 
-    // 작업 순서
-    // 0. 모든 아이디에 대해 다음 동작을 수행한다.
-    // 1. 모든 업로드 된 차량을 검사해서 마감된 차량을 뺀다.
-    // 2. DB의 업로드 데이터에서 마감 된 차량을 모두 제거한다.
-    // 3. 모든 차량 중에서 마감된 차량을 제거했으므로, 새로 모든 업로드된 차량을 조회한다.
-    // 4. 업로드가 되지 않은 차량을 걸러낸다
-    // 5. 업로드가 되지 않은 차량들을 업로드한다.
+    const chunkedCars = chunk(classifiedCars, Math.ceil((classifiedCars.length / worker)))
+    chunkedCars.forEach(chunk=>console.log(chunk.length))
 
-    const rootDir = CarUploader.getImageRootDir(testId)
-    if(!existsSync(rootDir)) {
-      await mkdir(rootDir)
-    }
+    const rootDir = CarUploader.getImageRootDir(id)
+    if(!existsSync(rootDir)) await mkdir(rootDir)
 
-    const sourceMapObj = {
-      succeededSourceMap: new Map<string, UploadSource[]>(),
-      failedSourceMap: new Map<string, UploadSource[]>()
-    }
-
-    console.log(`브라우저 페이지 초기화 : ${workerAmount}`);
-    await this.initializer.initializeBrowsers(workerAmount)
+    await this.initializer.initializeBrowsers(chunkedCars.length)
+    const pageList = this.initializer.pageList
 
     console.log("차량 업로드");
     try {
-      const carUploderResult = this.initializer.pageList.map(async (page, index)=>{
-        console.log(index*200, index*200 + 200);
-        await this.initializer.login(page, loginUrl + registerUrl, testId, testPw)
-        await this.initializer.activateEvents(page)
+      const uploadResults: Promise<void>[] = []
+      for (let i = 0; i < chunkedCars.length; i++) {
+        const page = pageList[i]
+        const chunkCars = chunkedCars[i]
+        console.log(chunkCars);
 
-        return new CarUploader(
-          page,
-          testId,
-          registerUrl,
-          classifiedCars.slice(index*200, index*200 + 200),
-        ).uploadCars()
-      })
-      // 이렇게 처리되면 중간에 아예 에러나는 경우에 업데이트를 못하게 될 수도 있음.
-      // 예를 들어 page에러가 발생해서 브라우저가 아예 꺼져버리는 경우
-      // 천천히 생각해보자 우선 업로드 로직부터 짜자
-      const uploadResults = await Promise.all(carUploderResult)
-      // id별 분류가 이루어지는 것이 맞다
-
-      uploadResults.reduce(({ succeededSourceMap, failedSourceMap }, {id, succeededSources, failedSources})=>{
-        let existingSucceededSources = succeededSourceMap.get(id)
-        let existingFailedSources = failedSourceMap.get(id)
-        existingSucceededSources = existingSucceededSources ? existingSucceededSources : []
-        existingFailedSources = existingFailedSources ? existingFailedSources : []
-        if (succeededSources.length) {
-          succeededSourceMap.set(id, [ ...existingSucceededSources , ...succeededSources])
-        }
-        if (failedSources.length) {
-          failedSourceMap.set(id, [ ...existingFailedSources , ...failedSources])
-        }
-        return {
-          succeededSourceMap,
-          failedSourceMap
-        }
-      }, sourceMapObj)
-
-      const succeededSourceIds = Array.from(sourceMapObj.succeededSourceMap.keys())
-      for (const id of succeededSourceIds) {
-        const sources = sourceMapObj.succeededSourceMap.get(id)
-        const responses = await this.dynamoUploadedCarClient.batchSave(id, sources!)
-        responses.forEach(r=>{
-          console.log(r);
-        })
+        uploadResults.push(this.execute(page, user, urlObj, chunkCars))
       }
-
-      // 실패 차량에 대한 분석 및 추후 처리가 필요하기 때문
-      // const failedSourceIds = Array.from(sourceMapObj.failedSourceMap.keys())
-
+      await Promise.all(uploadResults)
     } catch(e) {
       throw e
     } finally {
-      console.log(sourceMapObj);
       await rm(rootDir, { recursive: true, force: true })
     }
   }
+
 }

@@ -1,87 +1,81 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
+import { BatchClient } from "./aws"
 import { envs } from "./configs"
+import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
 import { BrowserInitializer, CategoryCrawler } from "./puppeteer"
-import { CarUploadService, CategoryService, UploadedCarSyncService } from "./services"
-import { AccountSheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient, KCRURLSheetClient } from "./db"
-
+import { CarAssignService, CarUploadService, CategoryService, UploadedCarSyncService } from "./services"
+import { CategoryInitializer } from "./utils"
 const {
-  BCAR_ANSAN_CROSS_CAR_REGISTER_URL,
-  BCAR_ANSAN_CROSS_LOGIN_URL,
   BCAR_CATEGORY_INDEX,
   BCAR_CATEGORY_TABLE,
   BCAR_INDEX,
   BCAR_TABLE,
-  DYNAMO_DB_REGION,
   GOOGLE_CLIENT_EMAIL,
   GOOGLE_PRIVATE_KEY,
+  JOB_DEFINITION_NAME,
+  JOB_QUEUE_NAME,
   NODE_ENV,
+  REGION,
 } = envs
 
-const accountSheetClient = new AccountSheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
-const KCRsheetClient = new KCRURLSheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
+const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, JOB_QUEUE_NAME)
+const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
 const initializer = new BrowserInitializer(NODE_ENV)
 const crawler = new CategoryCrawler(initializer)
-const dynamoCarClient = new DynamoCarClient(DYNAMO_DB_REGION, BCAR_TABLE, BCAR_INDEX)
-const dynamoCategoryClient = new DynamoCategoryClient(DYNAMO_DB_REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
-const dynamoUploadedCarClient = new DynamoUploadedCarClient(DYNAMO_DB_REGION, BCAR_TABLE, BCAR_INDEX)
+const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
+const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
+const dynamoUploadedCarClient = new DynamoUploadedCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
+const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
 
-async function syncUpdatedCars() {
+async function manageCars() {
+  const assignService = new CarAssignService(
+    sheetClient,
+    dynamoCarClient,
+    dynamoUploadedCarClient,
+    categoryInitializer,
+  )
+  await assignService.assign()
+  const accountMap = await assignService.getAccountMap()
+  const userIDs = Array.from(accountMap.keys())
+  console.log(userIDs);
+  const responses = await Promise.all(
+    userIDs.map(id=>batchClient.submitJob(
+      id, `syncCar-${id}`, ["node","/app/dist/src/index.js","syncCar"]
+    ))
+  )
+  console.log(responses);
+}
+async function syncCar() {
   const syncService = new UploadedCarSyncService(
-    dynamoCarClient,
     dynamoUploadedCarClient,
-    accountSheetClient,
-    KCRsheetClient,
-    initializer
-  )
-  await syncService.execute()
-}
-
-async function testUpdateCars() {
-  const carUploadService = new CarUploadService(
-    accountSheetClient,
-    dynamoCarClient,
-    dynamoCategoryClient,
-    dynamoUploadedCarClient,
-    initializer
+    sheetClient,
+    initializer,
   )
 
-  try {
-    await carUploadService.uploadCars(
-      BCAR_ANSAN_CROSS_LOGIN_URL,
-      BCAR_ANSAN_CROSS_CAR_REGISTER_URL,
-      1,
-      2,
-    )
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error.name);
-      console.error(error.message);
-      console.error(error.stack);
-    }
-  } finally {
-    await initializer.closePages()
+  await syncService.syncCarsByEnv()
+  const kcrId = process.env.KCR_ID
+  if (!kcrId) {
+    throw new Error("No id env");
   }
-  console.log("End execution");
+  const response = await batchClient.submitJob(
+    kcrId, `uploadCar-${kcrId}`, ["node","/app/dist/src/index.js","uploadCar"]
+  )
+  console.log(response)
 
 }
 
-async function updateCars() {
+async function uploadCar() {
   const carUploadService = new CarUploadService(
-    accountSheetClient,
+    sheetClient,
     dynamoCarClient,
-    dynamoCategoryClient,
     dynamoUploadedCarClient,
-    initializer
+    initializer,
+    categoryInitializer,
   )
 
   try {
-    await carUploadService.uploadCars(
-      BCAR_ANSAN_CROSS_LOGIN_URL,
-      BCAR_ANSAN_CROSS_CAR_REGISTER_URL,
-      3,
-      10000
-    )
+    await carUploadService.uploadCarByEnv()
   } catch (error) {
     if (error instanceof Error) {
       console.error(error.name);
@@ -95,10 +89,10 @@ async function updateCars() {
 
 
 async function crawlCategories() {
-  const categoryService = new CategoryService(accountSheetClient, crawler, dynamoCategoryClient)
+  const categoryService = new CategoryService(sheetClient, crawler, dynamoCategoryClient)
 
   try {
-    await categoryService.collectCategoryInfo(BCAR_ANSAN_CROSS_LOGIN_URL, BCAR_ANSAN_CROSS_CAR_REGISTER_URL)
+    await categoryService.collectCategoryInfo()
   } catch (error) {
     if (error instanceof Error) {
       console.error(error.name);
@@ -117,9 +111,9 @@ async function checkIPAddress() {
 }
 
 const functionMap = new Map<string, Function>([
-  [syncUpdatedCars.name, syncUpdatedCars],
-  [testUpdateCars.name, testUpdateCars],
-  [updateCars.name, updateCars],
+  [manageCars.name, manageCars],
+  [syncCar.name, syncCar],
+  [uploadCar.name, uploadCar],
   [crawlCategories.name, crawlCategories],
   [checkIPAddress.name, checkIPAddress],
 ])

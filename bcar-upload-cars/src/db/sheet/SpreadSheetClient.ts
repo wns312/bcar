@@ -4,27 +4,33 @@ import { envs } from "../../configs"
 import { ResponseError } from "../../errors"
 import { Account, KCRURL } from "../../types"
 
-export class AccountSheetClient {
-  static sheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
-  static spreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
-  static rangeStart = "A3"
-  static rangeEnd = "F"
-  sheets: sheets_v4.Sheets
+export class SheetClient {
+  static accountSheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
+  static accountSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
+  static accountRangeStart = "A3"
+  static accountRangeEnd = "F"
 
-  get range() {
-    const sheetName = AccountSheetClient.sheetName
-    const rangeStart = AccountSheetClient.rangeStart
-    const rangeEnd = AccountSheetClient.rangeEnd
-    return `${sheetName}!${rangeStart}:${rangeEnd}`
-  }
+  static kcrSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
+  static kcrSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
+  static kcrRangeStart = "A3"
+  static kcrRangeEnd = "D"
+  sheets: sheets_v4.Sheets
 
   constructor(email: string, key: string) {
     const auth = new google.auth.JWT(email, undefined, key, ["https://www.googleapis.com/auth/spreadsheets"])
     this.sheets = google.sheets({ version: "v4", auth })
   }
 
-  private convertAccounts(accountRawList: string[][]): Account[] {
-    return accountRawList?.map(([id, pw, region, isTest, isError, logUrl, error]) => ({
+  // Account
+  get accountRange() {
+    const sheetName = SheetClient.accountSheetName
+    const rangeStart = SheetClient.accountRangeStart
+    const rangeEnd = SheetClient.accountRangeEnd
+    return `${sheetName}!${rangeStart}:${rangeEnd}`
+  }
+
+  private convertAccounts(rawList: string[][]): Account[] {
+    return rawList?.map(([id, pw, region, isTest, isError, logUrl, error]) => ({
       id,
       pw,
       region,
@@ -37,8 +43,8 @@ export class AccountSheetClient {
 
   async getAccounts() {
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: AccountSheetClient.spreadsheetId,
-      range: this.range,
+      spreadsheetId: SheetClient.accountSpreadsheetId,
+      range: this.accountRange,
     });
     if (response.status != 200) {
       console.error(response);
@@ -49,23 +55,10 @@ export class AccountSheetClient {
     return this.convertAccounts(accountRawList)
   }
 
-  async getTestAccounts() {
-    const accounts = await this.getAccounts()
-    return accounts.filter(account => account.isTestAccount)
-  }
-
-  async getTestAccount() {
-    const testAccounts = await this.getTestAccounts()
-    if (!testAccounts.length) {
-      throw new Error("There is no test account");
-    }
-    return testAccounts[0]
-  }
-
   async appendAccount(id: string, pw: string, isTestAccount: boolean) {
     const response = await this.sheets.spreadsheets.values.append({
-      spreadsheetId: AccountSheetClient.spreadsheetId,
-      range: AccountSheetClient.sheetName,
+      spreadsheetId: SheetClient.accountSpreadsheetId,
+      range: SheetClient.accountSheetName,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [ [id, pw, isTestAccount, false] ]
@@ -77,29 +70,16 @@ export class AccountSheetClient {
     }
     return response.data
   }
-}
 
-export class KCRURLSheetClient {
-  static sheetName = envs.GOOGLE_KCRURL_SHEET_NAME
-  static spreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
-  static rangeStart = "A3"
-  static rangeEnd = "D"
-  sheets: sheets_v4.Sheets
-
-
-  constructor(email: string, key: string) {
-    const auth = new google.auth.JWT(email, undefined, key, ["https://www.googleapis.com/auth/spreadsheets"])
-    this.sheets = google.sheets({ version: "v4", auth })
-  }
-
-  get range() {
-    const sheetName = KCRURLSheetClient.sheetName
-    const rangeStart = KCRURLSheetClient.rangeStart
-    const rangeEnd = KCRURLSheetClient.rangeEnd
+  // KCR
+  get kcrRange() {
+    const sheetName = SheetClient.kcrSheetName
+    const rangeStart = SheetClient.kcrRangeStart
+    const rangeEnd = SheetClient.kcrRangeEnd
     return `${sheetName}!${rangeStart}:${rangeEnd}`
   }
 
-  private convertAll(rawList: string[][]): KCRURL[] {
+  private convertKcrs(rawList: string[][]): KCRURL[] {
     return rawList?.map(([region, loginUrl, registerUrl, manageUrl]) =>({
       region,
       loginUrl,
@@ -108,10 +88,10 @@ export class KCRURLSheetClient {
     }))
   }
 
-  async getAll() {
+  async getKcrs() {
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: KCRURLSheetClient.spreadsheetId,
-      range: this.range,
+      spreadsheetId: SheetClient.kcrSpreadsheetId,
+      range: this.kcrRange,
     });
     if (response.status != 200) {
       console.error(response);
@@ -119,6 +99,6 @@ export class KCRURLSheetClient {
     }
     const values = response.data.values as string[][]
     const rawList = values?.splice(1)
-    return this.convertAll(rawList)
+    return this.convertKcrs(rawList)
   }
 }

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { writeFile, mkdir, rm, readFile } from "fs/promises"
 import { Page, ProtocolError } from "puppeteer"
-import { Base64Image, CarDataObject, ManufacturerOrigin, UploadSource, UploadResult } from "../types"
+import { Base64Image, CarDataObject, ManufacturerOrigin, UploadSource } from "../types"
 import { delay } from "../utils"
 
 // 이 클래스의 인스턴스가 할 일은
@@ -270,6 +270,8 @@ export class CarUploaderSelector {
 
 
 export class CarUploader {
+  succeededSources: UploadSource[] = []
+  failedSources: UploadSource[] = []
 
   constructor(
     private page: Page,
@@ -407,20 +409,30 @@ export class CarUploader {
     }, evaluateInputList)
   }
 
+  // 수정해야 할 사항
+  // 1. model 항목을 선택할 수도 없고, 기타도 선택하지 않는 경우가 있다.
+  // 못찾아서 그런 것. -> 기타를 선택한 뒤, 제목을 적어주어야 한다.
   async categorizeCar(source: UploadSource) {
     const { origin, carSegment, carCompany, carModel, carDetailModel, car } = source
     const originSelector = CarUploaderSelector.getOriginSelector(origin)
     const segmentSelector = CarUploaderSelector.getSegmentSelector(carSegment.name)
     // const companySelector1 = CarUploader.companyBase + `:nth-child(${carCompany.index})`
-    const companySelector2 = CarUploaderSelector.companyDataValueBase + carCompany.dataValue
+    const companySelector2 = CarUploaderSelector.companyDataValueBase + carCompany!.dataValue
 
     await this.page.click(originSelector)
     await this.page.click(segmentSelector)
-    await delay(100)
+
     // await this.page.click(companySelector1)
+    await this.page.waitForSelector(companySelector2)
     await this.page.click(companySelector2)
 
-    if (origin === ManufacturerOrigin.Imported || !carModel) {
+    if (!carModel) {
+      if (origin === ManufacturerOrigin.Domestic) {
+        await this.page.waitForSelector(CarUploaderSelector.modelBase)
+        const liList = await this.page.$$(CarUploaderSelector.modelBase)
+        const etcLi = liList[liList.length-1]
+        await etcLi.click()
+      }
       const carTitleInput = await this.page.waitForSelector(CarUploaderSelector.modelNameInputSelector)
       if (carTitleInput) {
         await carTitleInput.type(car.title)
@@ -429,16 +441,20 @@ export class CarUploader {
     }
     // model은 있지만 detailModel이 없는 경우도 있을 수 있다.
     // 추후 문제가 생기는 경우 기타로 지정해서 carTitle을 적어주는 것을 고려해볼 것
-    await delay(100)
     const modelSelector = CarUploaderSelector.modelDataValueBase + carModel?.dataValue
+    await this.page.waitForSelector(modelSelector)
     await this.page.click(modelSelector)
 
     if (!carDetailModel) {
+      const carTitleInput = await this.page.waitForSelector(CarUploaderSelector.modelNameInputSelector)
+      if (carTitleInput) {
+        await carTitleInput.type(car.title)
+      }
       return
     }
 
-    await delay(100)
     const detailModelSelector = CarUploaderSelector.detailModelDataValueBase + carDetailModel.dataValue
+    await this.page.waitForSelector(detailModelSelector)
     await this.page.click(detailModelSelector)
   }
 
@@ -458,9 +474,7 @@ export class CarUploader {
     await this.page.waitForNavigation() // {waitUntil: "load"}
   }
 
-  async uploadCars(): Promise<UploadResult> {
-    const succeededSources: UploadSource[] = []
-    const failedSources: UploadSource[] = []
+  async uploadCars() {
     for (const source of this.sources) {
       console.log(source.car.carNumber);
       const imageDir = CarUploader.getImageDir(this.id, source.car.carNumber)
@@ -469,19 +483,21 @@ export class CarUploader {
       }
       try {
         await this.uploadCar(source)
-        succeededSources.push(source)
+        this.succeededSources.push(source)
       } catch (error) {
-        failedSources.push(source)
+        this.failedSources.push(source)
         // 처리해야하는 에러. 종료되어야 한다. 또는 재시작 되어야 함
         // 에러 이름: Error
         // 에러 메시지: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
         // 에러: Error: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
+        // No element found for selector: #categoryId > dl.ct_b > dd > ul > li.cateid-00000026
+        // WaitForSelector로 처리. 아주 가끔 에러를 일으킴
         if (
           error instanceof ProtocolError
           || !(error instanceof Error)
           ) {
           console.log("Unexpected error: stop execution");
-          return { id: this.id, succeededSources, failedSources }
+          return
         }
         console.error(
           "차량 등록에 실패했습니다."
@@ -490,16 +506,14 @@ export class CarUploader {
           + `\n에러 이름: ${error.name}`
           + `\n에러 메시지: ${error.message}`
           + `\n에러: ${error}`
+          + `\n스택: ${error.stack}`
         )
+        error.stack
       } finally {
         if(existsSync(imageDir)) {
           await rm(imageDir, { recursive: true, force: true })
         }
       }
     }
-    // uploader는 성공한 차량과, 실패한 차량에 대한 모든 목록을 리턴해주어야 한다.
-    // dialog에서도 이를 처리해 줄 수 있도록 하자.
-    // 또는 인스턴스 변수로 성공목록과 실패목록을 저장해두면, catch해서 쓸 수 있게 된다.
-    return { id: this.id, succeededSources, failedSources }
   }
 }

@@ -8,7 +8,7 @@ import {
   RegisterJobDefinitionCommand,
   ResourceType
 } from "@aws-sdk/client-batch";
-import { envs, deployEnvs } from "../configs"
+import { envs } from "../configs"
 
 const MINUTE = 60
 const {
@@ -18,7 +18,7 @@ const {
   REGION,
   TAG_NAME,
   TASK_EXECUTION_ROLE_ARN,
-} = deployEnvs
+} = envs
 
 const client = new BatchClient({ region: REGION });
 const registerCommand = new RegisterJobDefinitionCommand({

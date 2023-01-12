@@ -67,22 +67,6 @@ export class BrowserInitializer {
     await page.waitForNavigation({waitUntil: 'networkidle2'})
   }
 
-  // async activateScreenShot(page: puppeteer.Page, targetElementId: string) {
-  //   const example = await page.$(targetElementId);
-  //   const bounding_box = await example!.boundingBox();
-  //   return setInterval(async ()=>{
-  //     await page.screenshot({
-  //       path: `./images/screenshot-${Date.now()}.jpeg`,
-  //       clip: {
-  //         x: bounding_box!.x,
-  //         y: bounding_box!.y,
-  //         width: 1000,
-  //         height: 500
-  //       }
-  //     })
-  //   }, 5000)
-  // }
-
   async activateEvents(page: puppeteer.Page) {
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     page.on('pageerror', err => {
@@ -94,11 +78,6 @@ export class BrowserInitializer {
     page.on('requestfailed', request => {
         console.error(request.url() + ' ' + request.failure()!.errorText);
     });
-    page.on("dialog", async (dialog)=>{
-      await dialog.accept()
-      console.log("실행 완료");
-      throw Error("Cannot register cars anymore")
-    })
   }
 
 

@@ -1,3 +1,4 @@
+import { BatchGetItemCommandInput } from "@aws-sdk/client-dynamodb";
 import { DynamoBaseClient } from "./DynamoBaseClient"
 
 export class DynamoCarClient {
@@ -5,6 +6,7 @@ export class DynamoCarClient {
   tableName: string;
   indexName: string;
 
+  static userPrefix = "#USER-"
   static carPrefix = "#CAR-"
 
   constructor(region: string, tableName: string, indexName: string) {
@@ -51,6 +53,18 @@ export class DynamoCarClient {
   segmentScanCar(segmentSize: number) {
     return this.segmentScan(DynamoCarClient.carPrefix, DynamoCarClient.carPrefix, segmentSize)
   }
+
+  async getCarsByIds(carIds: string[]) {
+    const responses = await this.baseClient.batchGetItems(this.tableName, ...carIds)
+    return responses.map(response=>{
+      if (response.$metadata.httpStatusCode !== 200) {
+        console.error(response);
+        throw new Error("Response Error")
+      }
+      return response.Responses![this.tableName]
+    }).flat()
+  }
+
 }
 
   // getCar(carNum: string) {

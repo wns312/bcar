@@ -1,6 +1,8 @@
 
 import {
   AttributeValue,
+  BatchGetItemCommand,
+  BatchGetItemCommandInput,
   BatchWriteItemCommand,
   BatchWriteItemCommandInput,
   DeleteItemCommand,
@@ -10,6 +12,7 @@ import {
   DynamoDBClient,
   ExecuteStatementCommand,
   ExecuteStatementCommandInput,
+  KeysAndAttributes,
   PutItemCommand,
   PutItemCommandInput,
   PutRequest,
@@ -56,6 +59,27 @@ export class DynamoBaseClient {
 
   queryItems(input: QueryCommandInput) {
     return this.client.send(new QueryCommand(input))
+  }
+
+  batchGetItem(input: BatchGetItemCommandInput) {
+    return this.client.send(new BatchGetItemCommand(input))
+  }
+
+  batchGetItems(tableName: string, ...keys: string[]) {
+    const keyInputs = keys.map(pk=>({
+        PK: { S: pk },
+        SK: { S: pk },
+      }))
+    const responses = chunk(keyInputs, 100).map(keys => {
+      return this.batchGetItem({
+        RequestItems: {
+          [tableName]: {
+            Keys: keys
+          }
+        }
+      })
+    })
+    return Promise.all(responses)
   }
 
   executeStatement(input: ExecuteStatementCommandInput) {

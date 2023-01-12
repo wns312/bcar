@@ -5,7 +5,7 @@ import {
   ManufacturerOrigin,
   UploadSource,
 } from "../types"
-import { categoryConvertor, companyConvertor, modelDetailConverter } from "../utils"
+import { categoryConvertor, companyConvertor, modelDetailConverter } from "./converters"
 
 export class CarClassifier {
   constructor(
@@ -15,27 +15,17 @@ export class CarClassifier {
   ) {}
 
   private classify(car: CarDataObject) {
-    const convertedCategory = categoryConvertor.get(car.category)!
-    const convertedCompany = companyConvertor.get(car.company)!
+    const convertedCategory = categoryConvertor.get(car.category)
+    const convertedCompany = companyConvertor.get(car.company)
+
+    if (!convertedCategory || !convertedCompany) return
+
     const { name: companyName, origin: companyOrigin } = convertedCompany
     const carSegment = this.segmentMap.get(convertedCategory)
     const carCompany = this.companyMap.get(companyName)
 
-    if (!carSegment || !carCompany) {
-      console.error({
-        car,
-        convertedCategory,
-        convertedCompany,
-        carSegment,
-        carCompany,
-        // companyMap: this.companyMap
-      });
-      throw new Error("Segment or Company does not exist");
-    }
-    carSegment!.index
+    if (!carSegment || !carCompany) return
 
-
-    // result.push(car.title)
     const uploadSource: UploadSource = {
       car,
       origin: convertedCompany!.origin,
@@ -94,6 +84,6 @@ export class CarClassifier {
   }
 
   classifyAll() {
-    return this.cars.map(car => this.classify(car))
+    return this.cars.map(car => this.classify(car)).filter((car): car is UploadSource => Boolean(car))
   }
 }

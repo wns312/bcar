@@ -1,3 +1,4 @@
+import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { DynamoBaseClient } from "./DynamoBaseClient"
 import { UploadSource } from "../../types"
 
@@ -58,16 +59,24 @@ export class DynamoUploadedCarClient {
     )
   }
 
-  batchSave(id: string, updatedSources: UploadSource[]) {
+  batchSave(id: string, carNums: string[], isUploaded: boolean) {
     const now = Date.now()
-    const putItems = updatedSources.map(({car: {carNumber}})=>({
+    const putItems = carNums.map( carNumber =>({
       Item: {
         PK: { S: DynamoUploadedCarClient.userPrefix + id },
         SK: { S: DynamoUploadedCarClient.carPrefix + carNumber },
         registeredAt: { N: now.toString() },
+        isUploaded: { BOOL: isUploaded },
       }
     }))
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
+  }
+
+  rawBatchDelete(items: Record<string, AttributeValue>[]) {
+    const deleteRequestInput = items.map(item => ({
+      Key: { PK: item.PK, SK: item.SK }
+    }))
+    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 
   batchDelete(id: string, carNums: string[]) {
@@ -79,4 +88,28 @@ export class DynamoUploadedCarClient {
     }))
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
+
+  // 여기서 옵션으로 isUploaded = false인 애들만 가져오는 것을 추가해야한다.
+  queryById(id: string) {
+    return this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPrefix + id },
+      },
+    })
+  }
+
+  queryByIdFilteredByIsUploaded(id: string, isUploaded: boolean) {
+    return this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPrefix + id },
+        ":u": { BOOL: isUploaded }
+      },
+    })
+  }
 }
+

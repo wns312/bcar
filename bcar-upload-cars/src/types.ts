@@ -83,7 +83,7 @@ export interface UploadSource {
   car: CarDataObject
   origin: ManufacturerOrigin
   carSegment: CarBase
-  carCompany: CarBase
+  carCompany?: CarBase
   carModel?: CarBase
   carDetailModel?: CarBase
 }
@@ -91,10 +91,4 @@ export interface UploadSource {
 export interface Base64Image {
   base64: string
   ext: string
-}
-
-export interface UploadResult {
-  id: string;
-  succeededSources: UploadSource[];
-  failedSources: UploadSource[];
 }

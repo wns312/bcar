@@ -1,18 +1,23 @@
 import { CategoryCrawler } from "../puppeteer"
-import { AccountSheetClient, DynamoCategoryClient } from "../db"
+import { SheetClient, DynamoCategoryClient } from "../db"
 
 export class CategoryService {
   constructor(
-    private sheetClient: AccountSheetClient,
+    private sheetClient: SheetClient,
     private categoryCrawler: CategoryCrawler,
     private dynamoCategoryClient: DynamoCategoryClient,
   ) {}
 
 
-  async collectCategoryInfo(loginUrl: string, registerUrl: string) {
-    const { id: testId, pw: testPw } = await this.sheetClient.getTestAccount()
+  async collectCategoryInfo() {
+    const accounts = await this.sheetClient.getAccounts()
+    const { id, pw, region } = accounts[0]
+    const urls = await this.sheetClient.getKcrs()
+    const url = urls.find(url=>url.region === region)
+    if (!url) throw new Error("No proper url");
+    const { loginUrl, registerUrl } = url
 
-    await this.categoryCrawler.execute(testId, testPw, loginUrl, registerUrl)
+    await this.categoryCrawler.execute(id, pw, loginUrl, registerUrl)
 
     const carManufacturerMap = this.categoryCrawler.carManufacturerMap
     const carSegmentMap = this.categoryCrawler.carSegmentMap
