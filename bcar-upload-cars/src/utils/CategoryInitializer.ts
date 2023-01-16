@@ -2,7 +2,6 @@ import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { DynamoCategoryClient } from "../db"
 import { CarDataObject, CarDetailModel, CarModel, CarSegment, CarManufacturer, ManufacturerOrigin } from "../types"
 
-
 export class CategoryInitializer {
   constructor(private dynamoCategoryClient: DynamoCategoryClient) {}
 

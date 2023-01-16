@@ -2,15 +2,15 @@ import { existsSync } from 'node:fs';
 import { mkdir, rm } from "fs/promises"
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { Page } from "puppeteer"
-import { BrowserInitializer, CarUploader } from "../puppeteer"
+import { BrowserInitializer, CarUploader } from "../automations"
 import { SheetClient, DynamoCarClient, DynamoUploadedCarClient } from "../db"
 import { Account, CarDataObject, KCRURL, UploadSource } from "../types"
 import { CarClassifier, CategoryInitializer, chunk } from "../utils"
 
 export class CarUploadService {
 
-  _accountMap: Map<string, Account> | undefined
-  _urlMap: Map<string, KCRURL> | undefined
+  _accountMap?: Map<string, Account>
+  _urlMap?: Map<string, KCRURL>
 
   constructor(
     private sheetClient: SheetClient,

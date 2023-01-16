@@ -1,16 +1,14 @@
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
-import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "../db"
-import { Account, CarDataObject, CarDetailModel, CarModel, CarSegment, CarManufacturer, KCRURL, ManufacturerOrigin, UploadSource } from "../types"
+import { SheetClient, DynamoCarClient, DynamoUploadedCarClient } from "../db"
+import { Account, CarDataObject, KCRURL } from "../types"
 import { CarClassifier, CategoryInitializer } from "../utils"
 
-// Sync의 기능을 일부 가져와서 실행 후 새로운 Batch를 실행하도록 구성할 예정
-// 아마 CategoryInitializer를 새로 작성하게 될 것 같음
 export class CarAssignService {
 
-  _accountMap: Map<string, Account> | undefined
-  _urlMap: Map<string, KCRURL> | undefined
-
   static MAX_COUNT = 200
+  _accountMap?: Map<string, Account>
+  _urlMap?: Map<string, KCRURL>
+
   constructor(
     private sheetClient: SheetClient,
     private dynamoCarClient: DynamoCarClient,

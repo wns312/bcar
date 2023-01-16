@@ -2,12 +2,6 @@ import { existsSync } from 'node:fs';
 import { writeFile, mkdir, rm, readFile } from "fs/promises"
 import { Page, ProtocolError } from "puppeteer"
 import { Base64Image, CarDataObject, ManufacturerOrigin, UploadSource } from "../types"
-import { delay } from "../utils"
-
-// 이 클래스의 인스턴스가 할 일은
-// 1. 자신이 삭제해야할 차량의 목록을 리턴하는 것 (DB에서 삭제할 수 있도록)
-// 2. 자신에게 부족한 차량의 개수를 리턴하는 것 (필요한 만큼의 차량을 인자로 받을 수 있도록? 또는 리스트를 받아 하나씩 pop 할수도 있음. 이건 문제가 될 수 있음. 보류)
-// 3. 자신이 새로 등록한 차량의 목록을 리턴하는 것. 또는 자신이 등록한 모든 차량의 목록을 리턴하는 것 (이렇게 하면 새로 조회해서 갱신해줄 수 있음)
 
 export class CarUploaderSelector {
   private constructor() { }
@@ -409,9 +403,6 @@ export class CarUploader {
     }, evaluateInputList)
   }
 
-  // 수정해야 할 사항
-  // 1. model 항목을 선택할 수도 없고, 기타도 선택하지 않는 경우가 있다.
-  // 못찾아서 그런 것. -> 기타를 선택한 뒤, 제목을 적어주어야 한다.
   async categorizeCar(source: UploadSource) {
     const { origin, carSegment, carCompany, carModel, carDetailModel, car } = source
     const originSelector = CarUploaderSelector.getOriginSelector(origin)
@@ -422,8 +413,7 @@ export class CarUploader {
     await this.page.click(originSelector)
     await this.page.click(segmentSelector)
 
-    // await this.page.click(companySelector1)
-    await this.page.waitForSelector(companySelector2)
+    await this.page.waitForSelector(companySelector2)  // await this.page.click(companySelector1)
     await this.page.click(companySelector2)
 
     if (!carModel) {
@@ -439,8 +429,7 @@ export class CarUploader {
       }
       return
     }
-    // model은 있지만 detailModel이 없는 경우도 있을 수 있다.
-    // 추후 문제가 생기는 경우 기타로 지정해서 carTitle을 적어주는 것을 고려해볼 것
+
     const modelSelector = CarUploaderSelector.modelDataValueBase + carModel?.dataValue
     await this.page.waitForSelector(modelSelector)
     await this.page.click(modelSelector)
@@ -464,8 +453,8 @@ export class CarUploader {
     await this.page.goto(this.registerUrl, { waitUntil: "networkidle2"})
     await this.page.waitForSelector(CarUploaderSelector.formBase)
     const base64ImageList = await this.saveImages(imageDir, source.car.carImgList)
-    // form 채우기
-    await this.inputCarInformation(source.car)
+
+    await this.inputCarInformation(source.car)  // form 채우기
     // 차량 카테고리 설정
     await this.categorizeCar(source)
     await this.page.focus(CarUploaderSelector.imageRegisterButtonSelector)
@@ -508,7 +497,6 @@ export class CarUploader {
           + `\n에러: ${error}`
           + `\n스택: ${error.stack}`
         )
-        error.stack
       } finally {
         if(existsSync(imageDir)) {
           await rm(imageDir, { recursive: true, force: true })

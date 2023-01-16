@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
+import { BrowserInitializer, CategoryCrawler } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
-import { BrowserInitializer, CategoryCrawler } from "./puppeteer"
 import { CarAssignService, CarUploadService, CategoryService, UploadedCarSyncService } from "./services"
 import { CategoryInitializer } from "./utils"
+
 const {
   BCAR_CATEGORY_INDEX,
   BCAR_CATEGORY_TABLE,
@@ -21,12 +22,12 @@ const {
 
 const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, JOB_QUEUE_NAME)
 const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
-const initializer = new BrowserInitializer(NODE_ENV)
-const crawler = new CategoryCrawler(initializer)
 const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
 const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
 const dynamoUploadedCarClient = new DynamoUploadedCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
+const initializer = new BrowserInitializer(NODE_ENV)
 const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
+const crawler = new CategoryCrawler(initializer)
 
 async function manageCars() {
   const assignService = new CarAssignService(
@@ -36,33 +37,30 @@ async function manageCars() {
     categoryInitializer,
   )
   await assignService.assign()
+
   const accountMap = await assignService.getAccountMap()
   const userIDs = Array.from(accountMap.keys())
-  console.log(userIDs);
+  console.log(userIDs)
+
   const responses = await Promise.all(
-    userIDs.map(id=>batchClient.submitJob(
-      id, `syncCar-${id}`, ["node","/app/dist/src/index.js","syncCar"]
-    ))
+    userIDs.map(id=>batchClient.submitFunction(id, syncCar.name))
   )
   console.log(responses);
 }
+
 async function syncCar() {
   const syncService = new UploadedCarSyncService(
     dynamoUploadedCarClient,
     sheetClient,
     initializer,
   )
-
   await syncService.syncCarsByEnv()
-  const kcrId = process.env.KCR_ID
-  if (!kcrId) {
-    throw new Error("No id env");
-  }
-  const response = await batchClient.submitJob(
-    kcrId, `uploadCar-${kcrId}`, ["node","/app/dist/src/index.js","uploadCar"]
-  )
-  console.log(response)
 
+  const kcrId = process.env.KCR_ID
+  if (!kcrId) throw new Error("No id env")
+
+  const response = await batchClient.submitFunction(kcrId, uploadCar.name)
+  console.log(response)
 }
 
 async function uploadCar() {

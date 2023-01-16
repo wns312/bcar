@@ -1,7 +1,5 @@
-import { Page } from "puppeteer"
-import { AttributeValue } from "@aws-sdk/client-dynamodb"
-import { BrowserInitializer, CarSynchronizer } from "../puppeteer"
-import { SheetClient, DynamoCarClient, DynamoUploadedCarClient,  } from "../db"
+import { BrowserInitializer, CarSynchronizer } from "../automations"
+import { SheetClient, DynamoUploadedCarClient,  } from "../db"
 import { Account, KCRURL } from "../types"
 import { delay } from "../utils"
 
@@ -13,9 +11,6 @@ export class UploadedCarSyncService {
     private initializer: BrowserInitializer,
   ) {}
 
-  /*
-   * Private methods
-  */
   private async getUserCars(id: string): Promise<string[]> {
     const updateCarsResult = await this.dynamoUploadedCarClient.queryById(id)
     if (updateCarsResult.$metadata.httpStatusCode !== 200) {
@@ -35,9 +30,6 @@ export class UploadedCarSyncService {
     return allUrls.reduce((map, urlObj)=>map.set(urlObj.region, urlObj), new Map<string, KCRURL>())
   }
 
-  /*
-   * Public Methods
-  */
   async syncCarsByEnv() {
     const kcrId = process.env.KCR_ID
     if (!kcrId) {
@@ -82,5 +74,4 @@ export class UploadedCarSyncService {
       await this.dynamoUploadedCarClient.batchSave(id, existingCarNums, true)
     }
   }
-
 }

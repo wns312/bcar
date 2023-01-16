@@ -1,11 +1,5 @@
-import {
-  CarDataObject,
-  CarManufacturer,
-  CarSegment,
-  ManufacturerOrigin,
-  UploadSource,
-} from "../types"
 import { categoryConvertor, companyConvertor, modelDetailConverter } from "./converters"
+import { CarDataObject, CarManufacturer, CarSegment, ManufacturerOrigin, UploadSource } from "../types"
 
 export class CarClassifier {
   constructor(

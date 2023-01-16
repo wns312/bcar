@@ -1,4 +1,3 @@
-
 import { Page } from "puppeteer"
 import { BrowserInitializer } from "."
 import { CarCategory, CarDetailModel, CarManufacturer, CarModel, CarSegment, ManufacturerOrigin } from "../types"
@@ -58,7 +57,6 @@ export class CategoryCrawler {
     }, this.carManufacturerMap)
   }
 
-  // Manufacturer Map 초기화
   private async createImportedManufacturerMap(page: Page) {
     const manufacturerOriginSelector = this.manufacturerOriginSelector + ":nth-child(2)"
     await page.click(manufacturerOriginSelector)
@@ -66,7 +64,6 @@ export class CategoryCrawler {
     const clickselector = textContentSelector + this.segmentSelectorSuffix
     await page.click(clickselector)
     await page.waitForSelector("#categoryId > dl.ct_a > dd > ul > li")
-
 
     const manufacturers = await page.$$eval(this.manufacturerSelector, elements => {
       return elements.map(ele => [ele.textContent!, ele.getAttribute('data-value')!])
@@ -82,7 +79,6 @@ export class CategoryCrawler {
     }, this.carManufacturerMap)
   }
 
-  // Segment Map 초기화
   private async createCarSegmentMap(page: Page) {
     // ele.textContent!
     const segments = await page.$$eval(this.segmentSelectorPrefix, elements => elements.map(ele=>[ele.textContent!, ele.children.item(0)?.getAttribute("value")!]))
@@ -101,13 +97,12 @@ export class CategoryCrawler {
       this.detailModelSelector,
       elements=> elements.map(ele => [ele.textContent!, ele.getAttribute('data-value')!])
     )
-    // console.log(carDetails);
 
     return carDetails.map((carDetail, index): CarDetailModel => ({
-        name: carDetail[0].split(' (')[0],
-        dataValue: carDetail[1],
-        index
-      }))
+      name: carDetail[0].split(' (')[0],
+      dataValue: carDetail[1],
+      index
+    }))
   }
 
   private async collectCarModel(page: Page, carModelMap: Map<string,CarModel>, segment: string) {
@@ -141,13 +136,8 @@ export class CategoryCrawler {
     for (let i = 0; i < this.carManufacturerMap.size; i++) {
       const carManufacturer = this.carManufacturerMap.get(manufacturers[i])
 
-      if (manufacturers[i] == '기타') {
-        continue
-      }
-
-      if (!carManufacturer) {
-        throw new Error(`There is no proper manufacturer : ${manufacturers[i]}`)
-      }
+      if (manufacturers[i] == '기타') continue
+      if (!carManufacturer) throw new Error(`There is no proper manufacturer : ${manufacturers[i]}`)
 
       const manufacturerSelector = this.manufacturerSelector + `:nth-child(${carManufacturer.index})`
       await page.click(manufacturerSelector)
@@ -180,8 +170,7 @@ export class CategoryCrawler {
 
     await this.initializer.initializeBrowsers(this.carSegmentMap.size-1)
     const pages = this.initializer.pageList
-    // 각 브라우저 페이지 get
-    // 각 브라우저 로그인
+
     await Promise.all(
       pages.map(page => page.goto(url, { waitUntil: "networkidle2" }))
     )
@@ -208,8 +197,6 @@ export class CategoryCrawler {
     await Promise.all(promiseExecutes)
     await this.createImportedManufacturerMap(page)
     // console.log(this.carManufacturerMap);
-
-    // 딜레이
     await delay(2000)
   }
 }

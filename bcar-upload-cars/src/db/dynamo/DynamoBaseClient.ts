@@ -12,7 +12,6 @@ import {
   DynamoDBClient,
   ExecuteStatementCommand,
   ExecuteStatementCommandInput,
-  KeysAndAttributes,
   PutItemCommand,
   PutItemCommandInput,
   PutRequest,

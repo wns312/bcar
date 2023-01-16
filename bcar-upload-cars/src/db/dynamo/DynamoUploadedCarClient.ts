@@ -1,6 +1,5 @@
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { DynamoBaseClient } from "./DynamoBaseClient"
-import { UploadSource } from "../../types"
 
 export class DynamoUploadedCarClient {
   baseClient: DynamoBaseClient;
@@ -27,6 +26,7 @@ export class DynamoUploadedCarClient {
     })
     return result.Items!
   }
+
   private async segmentScan(PK: string, SK: string, segmentSize: number) {
     const resultsListPromise = []
     for (let i = 0; i < segmentSize; i++) {

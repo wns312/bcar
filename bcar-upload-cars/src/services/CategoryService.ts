@@ -1,4 +1,4 @@
-import { CategoryCrawler } from "../puppeteer"
+import { CategoryCrawler } from "../automations"
 import { SheetClient, DynamoCategoryClient } from "../db"
 
 export class CategoryService {

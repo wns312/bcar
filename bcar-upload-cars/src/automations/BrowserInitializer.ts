@@ -46,12 +46,10 @@ export class BrowserInitializer {
     console.info(`Total ${promiseClosedBrowsers.length} browser(s) closed`);
   }
 
-  // 이 친구는 여기 없는게 바람직할 것
   async login(page: puppeteer.Page, url: string, id: string, pw: string) {
     await page.goto(url, { waitUntil: "networkidle2" });
 
     await page.evaluate((id, pw) => {
-      // 태그 바뀌어야 함: id, pw 태그를 따로 가져올 것임
       const idInput = document.querySelector('#content > form > fieldset > div.form_inputbox > div:nth-child(1) > input')
       const pwInput = document.querySelector('#content > form > fieldset > div.form_inputbox > div:nth-child(3) > input')
       if (idInput && pwInput) {
@@ -79,6 +77,4 @@ export class BrowserInitializer {
         console.error(request.url() + ' ' + request.failure()!.errorText);
     });
   }
-
-
 }
