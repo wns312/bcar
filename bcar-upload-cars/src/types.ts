@@ -16,6 +16,15 @@ export type Account = {
   logStreamUrl: string | null
   errorContent: string | null
 }
+
+export type CarListObject = {
+  title: string
+  company: string
+  carNum: string
+  detailPageNum: number
+  price: number
+}
+
 export type KCRURL = {
   region: string
   loginUrl: string

@@ -13,7 +13,7 @@
     "container": "docker compose up crawler-arm64 -d",
     "container:amd64": "docker compose up crawler-amd64 -d",
     "container:all": "docker compose up -d",
-    "deploy:job:definition": "set -a && source env/.env && source env/aws.env && set +a && tsc && node dist/src/aws/JobDefinitionDeployer.js"
+    "deploy:job:definition": "set -a && source env/.env && source env/aws.env && set +a && node dist/src/aws/JobDefinitionDeployer.js"
   },
   "keywords": [],
   "author": "",

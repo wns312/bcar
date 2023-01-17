@@ -1,3 +1,4 @@
+import { ScanCommandInput } from "@aws-sdk/client-dynamodb";
 import { DynamoBaseClient } from "./DynamoBaseClient"
 
 export class DynamoCarClient {
@@ -14,6 +15,20 @@ export class DynamoCarClient {
     this.indexName = indexName;
   }
 
+  private createScanInput(PK: string, SK: string, segment?: number, segmentSize?: number, projectionExpressions?: string[]) {
+    return {
+      TableName: this.tableName,
+      FilterExpression: "begins_with(SK, :s) and begins_with(PK, :p)",
+      ExpressionAttributeValues: {
+        ":p": { S: PK },
+        ":s": { S: SK },
+      },
+      ProjectionExpression: projectionExpressions && projectionExpressions.join(", "),
+      Segment: segment,
+      TotalSegments: segmentSize
+    }
+  }
+
   private async scan(PK: string, SK: string) {
     const result = await this.baseClient.scanItems({
       TableName: this.tableName,
@@ -26,19 +41,12 @@ export class DynamoCarClient {
     return result.Items!
   }
 
-  private async segmentScan(PK: string, SK: string, segmentSize: number) {
+  private async segmentScan(PK: string, SK: string, segmentSize: number, projectionExpressions?: string[]) {
     const resultsListPromise = []
     for (let i = 0; i < segmentSize; i++) {
-      const results = this.baseClient.segmentScan({
-        TableName: this.tableName,
-        FilterExpression: "begins_with(SK, :s) and begins_with(PK, :p)",
-        ExpressionAttributeValues: {
-          ":p": { S: PK },
-          ":s": { S: SK },
-        },
-        Segment: i,
-        TotalSegments: segmentSize,
-      })
+      const results = this.baseClient.segmentScan(
+        this.createScanInput(PK, SK, i, segmentSize, projectionExpressions)
+      )
       resultsListPromise.push(results)
     }
     const resultsList = await Promise.all(resultsListPromise)
@@ -49,8 +57,8 @@ export class DynamoCarClient {
     return this.scan(DynamoCarClient.carPrefix, DynamoCarClient.carPrefix)
   }
 
-  segmentScanCar(segmentSize: number) {
-    return this.segmentScan(DynamoCarClient.carPrefix, DynamoCarClient.carPrefix, segmentSize)
+  segmentScanCar(segmentSize: number, projectionExpressions?: string[]) {
+    return this.segmentScan(DynamoCarClient.carPrefix, DynamoCarClient.carPrefix, segmentSize, projectionExpressions)
   }
 
   async getCarsByIds(carIds: string[]) {

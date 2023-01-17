@@ -1,4 +1,9 @@
 const {
+  SOURCE_ADMIN_ID,
+  SOURCE_ADMIN_PW,
+  SOURCE_LOGIN_PAGE,
+  SOURCE_MANAGE_PAGE,
+  SOURCE_DETAIL_PAGE_BASE,
   BCAR_TABLE,
   BCAR_INDEX,
   BCAR_CATEGORY_TABLE,
@@ -39,13 +44,14 @@ const envs = {
   PRIVATE_REGISTRY_PATH: PRIVATE_REGISTRY_PATH!,
   TAG_NAME: TAG_NAME!,
   TASK_EXECUTION_ROLE_ARN: TASK_EXECUTION_ROLE_ARN!,
+
+  SOURCE_ADMIN_ID: SOURCE_ADMIN_ID!,
+  SOURCE_ADMIN_PW: SOURCE_ADMIN_PW!,
+  SOURCE_LOGIN_PAGE: SOURCE_LOGIN_PAGE!,
+  SOURCE_MANAGE_PAGE: SOURCE_MANAGE_PAGE!,
+  SOURCE_DETAIL_PAGE_BASE: SOURCE_DETAIL_PAGE_BASE!,
 }
 
-if (envs.NODE_ENV === 'prod') {
-  console.info(process.env);
-}
-
-// 여기서 false
 if (!Object.values(envs).every(env => env !== undefined)) {
   throw new Error('Importing required env failed')
 }

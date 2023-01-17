@@ -1,4 +1,5 @@
 export * from "./CarAssignService"
+export * from "./CarCollectService"
 export * from "./CarUploadService"
 export * from "./CategoryService"
 export * from "./UploadedCarSyncService"

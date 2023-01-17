@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
-import { BrowserInitializer, CategoryCrawler } from "./automations"
+import { BrowserInitializer, CategoryCrawler, SourceCollector } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
-import { CarAssignService, CarUploadService, CategoryService, UploadedCarSyncService } from "./services"
+import { CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarSyncService } from "./services"
 import { CategoryInitializer } from "./utils"
 
 const {
@@ -18,6 +18,11 @@ const {
   JOB_QUEUE_NAME,
   NODE_ENV,
   REGION,
+  SOURCE_ADMIN_ID,
+  SOURCE_ADMIN_PW,
+  SOURCE_LOGIN_PAGE,
+  SOURCE_MANAGE_PAGE,
+  SOURCE_DETAIL_PAGE_BASE,
 } = envs
 
 const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, JOB_QUEUE_NAME)
@@ -29,6 +34,15 @@ const initializer = new BrowserInitializer(NODE_ENV)
 const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
 const crawler = new CategoryCrawler(initializer)
 
+// 미완성
+// VCPU: 1.0 / MEMORY: 2048
+async function collectCars() {
+  const sourceCollector = new SourceCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE)
+  const carCollectService = new CarCollectService(sourceCollector, dynamoCarClient)
+  await carCollectService.collect()
+}
+
+// VCPU: 1.0 / MEMORY: 2048
 async function manageCars() {
   const assignService = new CarAssignService(
     sheetClient,
@@ -43,11 +57,18 @@ async function manageCars() {
   console.log(userIDs)
 
   const responses = await Promise.all(
-    userIDs.map(id=>batchClient.submitFunction(id, syncCar.name))
+    userIDs.map(id=>batchClient.submitJob(
+      `${syncCar.name}-${id}`,
+      {
+        command: ["node", "/app/dist/src/index.js", `${syncCar.name}-${id}`],
+        environment: [{ name: "KCR_ID", value: id }],
+      }
+    ))
   )
   console.log(responses);
 }
 
+// VCPU: 1.0 / MEMORY: 2048
 async function syncCar() {
   const syncService = new UploadedCarSyncService(
     dynamoUploadedCarClient,
@@ -59,10 +80,19 @@ async function syncCar() {
   const kcrId = process.env.KCR_ID
   if (!kcrId) throw new Error("No id env")
 
-  const response = await batchClient.submitFunction(kcrId, uploadCar.name)
+  const response = await batchClient.submitJob(
+    `${uploadCar.name}-${kcrId}`,
+    {
+      command: ["node", "/app/dist/src/index.js", `${uploadCar.name}-${kcrId}`],
+      environment: [{ name: "KCR_ID", value: kcrId }],
+      vcpu: 2,
+      memory: 4096
+    }
+  )
   console.log(response)
 }
 
+// VCPU: 2.0~4.0 / MEMORY: 4096~8192
 async function uploadCar() {
   const carUploadService = new CarUploadService(
     sheetClient,
@@ -85,7 +115,7 @@ async function uploadCar() {
   }
 }
 
-
+// VCPU: 1.0 / MEMORY: 2048
 async function crawlCategories() {
   const categoryService = new CategoryService(sheetClient, crawler, dynamoCategoryClient)
 
@@ -102,6 +132,7 @@ async function crawlCategories() {
   }
 }
 
+// VCPU: 0.25 / MEMORY: 512
 async function checkIPAddress() {
   const response = await fetch('http://api.ipify.org/?format=json')
   const body = await response.json()
@@ -109,6 +140,7 @@ async function checkIPAddress() {
 }
 
 const functionMap = new Map<string, Function>([
+  [collectCars.name, collectCars],
   [manageCars.name, manageCars],
   [syncCar.name, syncCar],
   [uploadCar.name, uploadCar],
@@ -117,6 +149,7 @@ const functionMap = new Map<string, Function>([
 ])
 
 const fc = functionMap.get(process.argv[2])
+
 
 if (!fc) {
   console.error("[Function list]");
