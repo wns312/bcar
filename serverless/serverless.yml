@@ -1,0 +1,32 @@
+service: trigger
+frameworkVersion: '3'
+
+useDotenv: true
+custom:
+  dotenv:
+    path: env/.env
+provider:
+  name: aws
+  stage: "prod"
+  runtime: nodejs16.x
+  region: ap-northeast-2
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: "batch:SubmitJob"
+          Resource: "*"
+
+functions:
+  checkIPAddress:
+    handler: index.checkIPAddress
+  manageCars:
+    handler: index.manageCars
+    # events:
+    #   - schedule: cron(0 12 * * ? *) # 저녁 9시
+    #   - schedule: cron(0 21 * * ? *) # 아침 6시
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+  - serverless-dotenv-plugin

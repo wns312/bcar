@@ -15,6 +15,12 @@ provider:
   name: aws
   runtime: nodejs14.x
   region: ap-northeast-2
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: '*'
+          Resource: '*'
 
   environment:
     BCAR_TABLE: ${self:custom.tableName}
@@ -24,7 +30,7 @@ functions:
 
   manageBCar:
     timeout: 900
-    memorySize: 2048
+    memorySize: 4096
     handler: src/index.manageBCar
     events:
       # 저녁 9시
