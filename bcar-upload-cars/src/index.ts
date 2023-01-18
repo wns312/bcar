@@ -146,7 +146,7 @@ async function getCarNumbers() {
 
 // VCPU: 0.25 / MEMORY: 512
 async function getUpdatedCarNumbers() {
-  const carNumbers = await   dynamoUploadedCarClient.segmentScanUploadedCar(10, ["PK", "SK"])
+  const carNumbers = await dynamoUploadedCarClient.segmentScanUploadedCar(10, ["PK", "SK"])
   console.log(carNumbers);
   console.log(carNumbers.length);
 }

@@ -48,7 +48,7 @@ export class CarAssignService {
     // [A, B]
     const [rawCars, rawuploadedCars] = await Promise.all([
       this.dynamoCarClient.segmentScanCar(8),
-      this.dynamoUploadedCarClient.segmentScanUploadedCar(8)
+      this.dynamoUploadedCarClient.segmentScanUploadedCar(8, ["PK", "SK"])
     ])
     console.log("rawCars: ", rawCars.length)
     console.log("rawuploadedCars: ", rawuploadedCars.length)

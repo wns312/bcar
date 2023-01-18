@@ -12,7 +12,7 @@ export class UploadedCarSyncService {
   ) {}
 
   private async getUserCars(id: string): Promise<string[]> {
-    const updateCarsResult = await this.dynamoUploadedCarClient.queryById(id)
+    const updateCarsResult = await this.dynamoUploadedCarClient.queryById(id, ["SK"])
     if (updateCarsResult.$metadata.httpStatusCode !== 200) {
       console.error(updateCarsResult);
       throw new Error("Response is not 200");

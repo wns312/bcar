@@ -21,7 +21,8 @@ RUN apt-get -y install tzdata && \
   echo "Asia/Seoul" > /etc/timezone
 RUN date
 
-RUN apt-get install -y chromium
+# apt-get install chromium=109.0.5414.74-2~deb11u1
+RUN apt-get install -y chromium 
 RUN rm -rf /var/lib/apt/lists/*
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \

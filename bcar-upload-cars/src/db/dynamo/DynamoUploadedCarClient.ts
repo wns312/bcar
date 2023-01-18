@@ -99,17 +99,18 @@ export class DynamoUploadedCarClient {
   }
 
   // 여기서 옵션으로 isUploaded = false인 애들만 가져오는 것을 추가해야한다.
-  queryById(id: string) {
+  queryById(id: string, projectionExpressions?: string[]) {
     return this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",
       ExpressionAttributeValues: {
         ":p": { S: DynamoUploadedCarClient.userPrefix + id },
       },
+      ProjectionExpression: projectionExpressions && projectionExpressions.join(", ")
     })
   }
 
-  queryByIdFilteredByIsUploaded(id: string, isUploaded: boolean) {
+  queryByIdFilteredByIsUploaded(id: string, isUploaded: boolean, projectionExpressions?: string[]) {
     return this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",
@@ -118,6 +119,7 @@ export class DynamoUploadedCarClient {
         ":p": { S: DynamoUploadedCarClient.userPrefix + id },
         ":u": { BOOL: isUploaded }
       },
+      ProjectionExpression: projectionExpressions && projectionExpressions.join(", ")
     })
   }
 }

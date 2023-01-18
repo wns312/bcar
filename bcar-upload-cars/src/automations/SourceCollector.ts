@@ -78,7 +78,7 @@ export class SourceCollector {
 
     return result
   }
-  // a 태그의 href값을 원하는 페이지값으로 변경 후 클릭한다.
+
   private async movePage(page: Page, pageNum: number) {
     const aTag = await page.waitForSelector('#paging > a:nth-child(1)')
     if (!aTag) throw new Error("No Anchor tag")
@@ -131,4 +131,9 @@ export class SourceCollector {
   // 그렇게 총 18개의 batch를 사용하는 것이다.
   // 굳이 그렇게 할 필요는 없어 보이는데.. 이미 람다는 무료로 잘 돌고있긴 하다.
   // 대신 batch로 언제든 돌릴 수 있도록 예비용으로만 만들어둘 것
+
+  // 1. 차량 리스트를 긁어온 뒤, #CAR 접두어가 아닌 특정 접두어로 저장한다. (Ex. #TMP-차량번호)
+  // 2. 디테일 collect 로직을 돌리는데, 브라우저 10대로 하나로 우선 시도해볼 것.
+  // 3. 우선 시도해보고 안되면, batch container를 늘려서 1000대씩 가져오고, 선점 플래그를 true로 만들어서 다른 batch가 가져오지 않도록 할 것
+  // 4. 완료된 TMP의 경우 선점한 container가 삭제하도록 한다?
 }
