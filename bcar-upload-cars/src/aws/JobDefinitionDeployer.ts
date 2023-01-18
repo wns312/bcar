@@ -36,11 +36,11 @@ const registerCommand = new RegisterJobDefinitionCommand({
     resourceRequirements: [
       {
         type: ResourceType.VCPU,
-        value: "1.0"
+        value: "2.0"
       },
       {
         type: ResourceType.MEMORY,
-        value: "2048"
+        value: "4096"
       }
     ],
     linuxParameters: {

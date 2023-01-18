@@ -430,6 +430,13 @@ export class CarUploader {
       return
     }
 
+    // 여기서 dataValue로 가져오면 안된다.
+    // dataValue로 가져왔을 때 발생할 수 있는 문제점
+    // 1. 만약 SUV라고 카테고리를 지정했는데 실제로는 경차라면 절대 찾을 수 없다.
+    // 2. 따라서 waitForSelector는 timeout을 발생시키게 된다.
+    // 3. 이 경우 dataValue로 가져오는 것이 아닌 selector 전체로 wait을 하고, 리스트를 가져와서 찾는것이 낫다.
+    // 4. 이렇게 찾았을 때 없는 경우 기타로 빼면 되기 때문이다.
+    // 5. 추가로, dataValue로 가져오는 이런 경우는 전부 수정되는 것이 바람직하다.
     const modelSelector = CarUploaderSelector.modelDataValueBase + carModel?.dataValue
     await this.page.waitForSelector(modelSelector)
     await this.page.click(modelSelector)

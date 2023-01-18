@@ -60,7 +60,7 @@ async function manageCars() {
     userIDs.map(id=>batchClient.submitJob(
       `${syncCar.name}-${id}`,
       {
-        command: ["node", "/app/dist/src/index.js", `${syncCar.name}-${id}`],
+        command: ["node", "/app/dist/src/index.js", syncCar.name],
         environment: [{ name: "KCR_ID", value: id }],
       }
     ))
@@ -68,7 +68,7 @@ async function manageCars() {
   console.log(responses);
 }
 
-// VCPU: 1.0 / MEMORY: 2048
+// VCPU: 2.0 / MEMORY: 4096
 async function syncCar() {
   const syncService = new UploadedCarSyncService(
     dynamoUploadedCarClient,
@@ -83,16 +83,14 @@ async function syncCar() {
   const response = await batchClient.submitJob(
     `${uploadCar.name}-${kcrId}`,
     {
-      command: ["node", "/app/dist/src/index.js", `${uploadCar.name}-${kcrId}`],
+      command: ["node", "/app/dist/src/index.js", uploadCar.name],
       environment: [{ name: "KCR_ID", value: kcrId }],
-      vcpu: 2,
-      memory: 4096
     }
   )
   console.log(response)
 }
 
-// VCPU: 2.0~4.0 / MEMORY: 4096~8192
+// VCPU: 2.0 / MEMORY: 4096
 async function uploadCar() {
   const carUploadService = new CarUploadService(
     sheetClient,
@@ -139,6 +137,20 @@ async function checkIPAddress() {
   console.log(body.ip);
 }
 
+// VCPU: 0.25 / MEMORY: 512
+async function getCarNumbers() {
+  const carNumbers = await dynamoCarClient.segmentScanCar(10, ["CarNumber"])
+  console.log(carNumbers);
+  console.log(carNumbers.length);
+}
+
+// VCPU: 0.25 / MEMORY: 512
+async function getUpdatedCarNumbers() {
+  const carNumbers = await   dynamoUploadedCarClient.segmentScanUploadedCar(10, ["PK", "SK"])
+  console.log(carNumbers);
+  console.log(carNumbers.length);
+}
+
 const functionMap = new Map<string, Function>([
   [collectCars.name, collectCars],
   [manageCars.name, manageCars],
@@ -146,6 +158,8 @@ const functionMap = new Map<string, Function>([
   [uploadCar.name, uploadCar],
   [crawlCategories.name, crawlCategories],
   [checkIPAddress.name, checkIPAddress],
+  [getCarNumbers.name, getCarNumbers],
+  [getUpdatedCarNumbers.name, getUpdatedCarNumbers],
 ])
 
 const fc = functionMap.get(process.argv[2])

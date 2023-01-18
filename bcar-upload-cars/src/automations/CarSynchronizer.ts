@@ -76,7 +76,8 @@ export class CarSynchronizer {
     while (pageNumber) {
       const lastPageUrl = this.manageUrl + `?page=${pageNumber}`
       await this.page.goto(lastPageUrl, { waitUntil: "networkidle2"})
-      await delay(100)
+      await this.page.waitForSelector("#_carManagement > table")
+      await delay(1000)
       const existingCarNumsInPage = await this.deleteExpiredCars()
       existingCarNums = [...existingCarNums, ...existingCarNumsInPage]
       pageNumber -= 1

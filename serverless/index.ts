@@ -17,7 +17,11 @@ export async function manageCars(event: APIGatewayEvent,context: Context) {
     jobDefinition: envs.JOB_DEFINITION_NAME,
     jobQueue: envs.JOB_QUEUE_NAME,
     containerOverrides: {
-      command: ["node","/app/dist/src/index.js",manageCars.name]
+      command: ["node","/app/dist/src/index.js",manageCars.name],
+      resourceRequirements: [
+        { type: "VCPU", value: "1.0" },
+        { type: "MEMORY", value: "2048" },
+      ]
     }
   }))
   console.log(response);
