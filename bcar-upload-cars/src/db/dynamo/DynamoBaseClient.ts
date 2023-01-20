@@ -5,6 +5,7 @@ import {
   BatchGetItemCommandInput,
   BatchWriteItemCommand,
   BatchWriteItemCommandInput,
+  BatchWriteItemCommandOutput,
   DeleteItemCommand,
   DeleteItemCommandInput,
   DeleteRequest,
@@ -56,18 +57,26 @@ export class DynamoBaseClient {
     return results
   }
 
-  queryItems(input: QueryCommandInput) {
-    return this.client.send(new QueryCommand(input))
+  async queryItems(input: QueryCommandInput) {
+    let results: Record<string, AttributeValue>[] = []
+    while (true) {
+      const result = await this.client.send(new QueryCommand(input))
+      if (result.$metadata.httpStatusCode !== 200) throw new ResponseError(`${result.$metadata}`)
+      results = [...results, ...result.Items!]
+      input.ExclusiveStartKey = result.LastEvaluatedKey
+      if (!result.LastEvaluatedKey) break
+    }
+    return results
   }
 
   batchGetItem(input: BatchGetItemCommandInput) {
     return this.client.send(new BatchGetItemCommand(input))
   }
 
-  batchGetItems(tableName: string, ...keys: string[]) {
-    const keyInputs = keys.map(pk=>({
+  batchGetItems(tableName: string, ...keys: string[][]) {
+    const keyInputs = keys.map(([pk, sk])=>({
         PK: { S: pk },
-        SK: { S: pk },
+        SK: { S: sk },
       }))
     const responses = chunk(keyInputs, 100).map(keys => {
       return this.batchGetItem({
@@ -93,16 +102,19 @@ export class DynamoBaseClient {
     return this.client.send(new DeleteItemCommand(input))
   }
 
-  batchPutItems(tableName: string, ...putRequestInputs: PutRequest[]) {
+  async batchPutItems(tableName: string, ...putRequestInputs: PutRequest[]) {
     const input = putRequestInputs.map(input=>({ PutRequest: input }))
-    const responses = chunk(input, 25).map(putRequests => {
-      return this.batchWriteItem({
+    const chunks = chunk(input, 25)
+    let responses: BatchWriteItemCommandOutput[] = []
+    for (const putRequests of chunks) {
+      const response = await this.batchWriteItem({
         RequestItems: {
           [tableName]: putRequests
         }
       })
-    })
-    return Promise.all(responses)
+      responses.push(response)
+    }
+    return responses
   }
 
   batchDeleteItems(tableName: string, ...deleteRequestInputs: DeleteRequest[]) {

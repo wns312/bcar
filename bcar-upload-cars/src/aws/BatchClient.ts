@@ -6,6 +6,7 @@ interface SubmitJobCommandOption {
   environment?: KeyValuePair[]
   vcpu?: number
   memory?: number
+  timeout?: number
 }
 
 export class BatchClient {
@@ -29,13 +30,17 @@ export class BatchClient {
   }
 
   async submitJob(jobName: string, options: SubmitJobCommandOption = {}) {
-    const { environment, command, vcpu, memory } = options
+    const { environment, command, vcpu, memory, timeout } = options
     const input = new SubmitJobCommand({
       jobName,
       jobQueue: this.jobQueue,
       jobDefinition: this.jobDefinition,
+      timeout: { attemptDurationSeconds : timeout ? timeout : 900 },
       containerOverrides: {
-        environment: [...this.environment, ...environment || [] ],
+        environment: [...this.environment, ...environment || [], {
+          name: "NODE_ENV",
+          value: "prod"
+        }],
         command,
         resourceRequirements: (vcpu && memory) ? [
           { type: "VCPU", value: vcpu.toString() },

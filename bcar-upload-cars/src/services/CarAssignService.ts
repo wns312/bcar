@@ -47,7 +47,7 @@ export class CarAssignService {
     private async getUnregisteredCars() {
     // [A, B]
     const [rawCars, rawuploadedCars] = await Promise.all([
-      this.dynamoCarClient.segmentScanCar(8),
+      this.dynamoCarClient.queryCars(),
       this.dynamoUploadedCarClient.segmentScanUploadedCar(8, ["PK", "SK"])
     ])
     console.log("rawCars: ", rawCars.length)
@@ -107,13 +107,9 @@ export class CarAssignService {
         break
       }
 
-      const result = await this.dynamoUploadedCarClient.queryById(id)
-      if (result.$metadata.httpStatusCode !== 200) {
-        console.error(result);
-        throw new Error("Response is not 200");
-      }
-      const itemsAmount = result.Items!.length
-      const amountToAssign = CarAssignService.MAX_COUNT - itemsAmount
+      // Select 추가
+      const results = await this.dynamoUploadedCarClient.queryById(id)
+      const amountToAssign = CarAssignService.MAX_COUNT - results.length
 
       if (amountToAssign <= 0) {
         console.log(`Account ${id} is fully assigned.`);

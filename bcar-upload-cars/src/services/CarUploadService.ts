@@ -51,15 +51,11 @@ export class CarUploadService {
 
   private async getUserCars(id: string): Promise<CarDataObject[]> {
     const updateCarsResult = await this.dynamoUploadedCarClient.queryByIdFilteredByIsUploaded(id, false)
-    if (updateCarsResult.$metadata.httpStatusCode !== 200) {
-      console.error(updateCarsResult);
-      throw new Error("Response is not 200");
-    }
-    if (!updateCarsResult.Items!.length) {
+    if (!updateCarsResult.length) {
       return []
     }
 
-    const userCars = await this.dynamoCarClient.getCarsByIds(updateCarsResult.Items!.map(item=>item.SK.S!))
+    const userCars = await this.dynamoCarClient.QueryCarsByCarNumbers(updateCarsResult.map(item=>item.SK.S!))
     const cars = CarUploadService.createCarObject(userCars)
     return cars
   }

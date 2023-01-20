@@ -12,12 +12,8 @@ export class UploadedCarSyncService {
   ) {}
 
   private async getUserCars(id: string): Promise<string[]> {
-    const updateCarsResult = await this.dynamoUploadedCarClient.queryById(id, ["SK"])
-    if (updateCarsResult.$metadata.httpStatusCode !== 200) {
-      console.error(updateCarsResult);
-      throw new Error("Response is not 200");
-    }
-    return updateCarsResult.Items ? updateCarsResult.Items.map(item=>item.SK.S!.replace("#CAR-", "")) : []
+    const updateCarsResults = await this.dynamoUploadedCarClient.queryById(id, ["SK"])
+    return updateCarsResults.length ? updateCarsResults.map(item=>item.SK.S!.replace("#CAR-", "")) : []
   }
 
   private async getAccountMap() {

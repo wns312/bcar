@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
-import { BrowserInitializer, CategoryCrawler, SourceCollector } from "./automations"
+import { BrowserInitializer, CategoryCrawler, DetailCollector, DraftCollector } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
@@ -21,12 +21,12 @@ const {
   SOURCE_ADMIN_ID,
   SOURCE_ADMIN_PW,
   SOURCE_LOGIN_PAGE,
-  SOURCE_MANAGE_PAGE,
-  SOURCE_DETAIL_PAGE_BASE,
 } = envs
 
 const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, JOB_QUEUE_NAME)
 const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
+const draftCollector = new DraftCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE)
+const detailCollector = new DetailCollector()
 const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
 const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
 const dynamoUploadedCarClient = new DynamoUploadedCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
@@ -34,12 +34,29 @@ const initializer = new BrowserInitializer(NODE_ENV)
 const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
 const crawler = new CategoryCrawler(initializer)
 
-// 미완성
 // VCPU: 1.0 / MEMORY: 2048
-async function collectCars() {
-  const sourceCollector = new SourceCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE)
-  const carCollectService = new CarCollectService(sourceCollector, dynamoCarClient)
-  await carCollectService.collect()
+async function collectDrafts() {
+  const carCollectService = new CarCollectService(draftCollector, detailCollector, dynamoCarClient)
+  await carCollectService.collectDrafts()
+  await triggerCollectingDetails()
+}
+
+// VCPU: 0.25 / MEMORY: 512
+async function triggerCollectingDetails() {
+  const response = await batchClient.submitJob(
+    collectDetails.name,
+    {
+      command: ["node", "/app/dist/src/index.js", collectDetails.name],
+      timeout: 60 * 30,
+    }
+  )
+  console.log(response)
+}
+
+// VCPU: 2.0 / MEMORY: 4096
+async function collectDetails() {
+  const carCollectService = new CarCollectService(draftCollector, detailCollector, dynamoCarClient)
+  await carCollectService.collectDetails()
 }
 
 // VCPU: 1.0 / MEMORY: 2048
@@ -139,7 +156,7 @@ async function checkIPAddress() {
 
 // VCPU: 0.25 / MEMORY: 512
 async function getCarNumbers() {
-  const carNumbers = await dynamoCarClient.segmentScanCar(10, ["CarNumber"])
+  const carNumbers = await dynamoCarClient.queryCars(["CarNumber"])
   console.log(carNumbers);
   console.log(carNumbers.length);
 }
@@ -152,10 +169,13 @@ async function getUpdatedCarNumbers() {
 }
 
 const functionMap = new Map<string, Function>([
-  [collectCars.name, collectCars],
-  [manageCars.name, manageCars],
-  [syncCar.name, syncCar],
-  [uploadCar.name, uploadCar],
+  [collectDrafts.name, collectDrafts],  // 1
+  [triggerCollectingDetails.name, triggerCollectingDetails],  // 1-2
+  [collectDetails.name, collectDetails],  // 2
+  [manageCars.name, manageCars],  // 3
+  [syncCar.name, syncCar],  // 4
+  [uploadCar.name, uploadCar],  // 5
+
   [crawlCategories.name, crawlCategories],
   [checkIPAddress.name, checkIPAddress],
   [getCarNumbers.name, getCarNumbers],
@@ -179,6 +199,10 @@ if (!fc) {
   if(!existsSync("./images")) {
     await mkdir("./images")
   }
+  const startTime = Date.now()
   await fc()
+  const endTime = Date.now()
+  const executionTime = Math.ceil((endTime - startTime) / 1000)
+  console.log(`Execution time : ${executionTime}(s)`);
 })()
 

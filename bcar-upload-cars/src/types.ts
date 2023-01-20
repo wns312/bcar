@@ -2,6 +2,10 @@ import { envs } from './configs'
 
 export type Environments = typeof envs
 
+export type Incomplete<T> = {
+  [P in keyof T]?: T[P] | undefined | null
+}
+
 export type RangeChunk = {
   start: number,
   end: number
@@ -15,14 +19,6 @@ export type Account = {
   isErrorOccured: boolean
   logStreamUrl: string | null
   errorContent: string | null
-}
-
-export type CarListObject = {
-  title: string
-  company: string
-  carNum: string
-  detailPageNum: number
-  price: number
 }
 
 export type KCRURL = {
