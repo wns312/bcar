@@ -1,35 +1,34 @@
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { DynamoCategoryClient } from "../db"
-import { CarDataObject, CarDetailModel, CarModel, CarSegment, CarManufacturer, ManufacturerOrigin } from "../types"
+import { Car } from "../entities"
+import { CarDetailModel, CarModel, CarSegment, CarManufacturer, ManufacturerOrigin } from "../types"
 
 export class CategoryInitializer {
   constructor(private dynamoCategoryClient: DynamoCategoryClient) {}
 
-  static createCarObject(items: Record<string, AttributeValue>[]): CarDataObject[] {
+  static createCarObject(items: Record<string, AttributeValue>[]): Car[] {
     return items.map(item=>{
-      return {
-        PK: item.PK.S!,
-        SK: item.SK.S!,
-        carCheckSrc: item.CarCheckSrc.S!,
-        modelYear: item.ModelYear.S!,
-        presentationsDate: item.PresentationsDate.S!,
-        displacement: item.Displacement.S!,
-        mileage: item.Mileage.S!,
-        carImgList: item.CarImgList ? item.CarImgList.SS! : [],
-        hasMortgage: item.HasMortgage.BOOL!,
-        hasSeizure: item.HasSeizure.BOOL!,
-        title: item.Title.S!,
-        fuelType: item.FuelType.S!,
-        carNumber: item.CarNumber.S!,
-        registerNumber: item.RegisterNumber.S!,
-        presentationNumber: item.PresentationNumber.S!,
-        price: Number.parseInt(item.Price.N!),
-        hasAccident: item.HasAccident.S!,
-        gearBox: item.GearBox.S!,
-        color: item.Color.S!,
-        company: item.Company.S!,
-        category: item.Category.S!,
-      }
+      return new Car({
+        carCheckSrc: item.carCheckSrc.S!,
+        modelYear: item.modelYear.S!,
+        presentationsDate: item.presentationsDate.S!,
+        displacement: parseInt(item.displacement.N!),
+        mileage: parseInt(item.mileage.N!),
+        images: item.images ? item.images.SS! : [],
+        hasMortgage: item.hasMortgage.BOOL!,
+        hasSeizure: item.hasSeizure.BOOL!,
+        title: item.title.S!,
+        fuelType: item.fuelType.S!,
+        carNumber: item.carNumber.S!,
+        registerNumber: item.registerNumber.S!,
+        presentationNumber: item.presentationNumber.S!,
+        price: parseInt(item.price.N!),
+        hasAccident: item.hasAccident.S!,
+        gearBox: item.gearBox.S!,
+        color: item.color.S!,
+        company: item.company.S!,
+        category: item.category.S!,
+      })
     })
   }
 

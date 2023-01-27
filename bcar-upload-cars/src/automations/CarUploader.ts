@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { writeFile, mkdir, rm, readFile } from "fs/promises"
 import { Page, ProtocolError } from "puppeteer"
-import { Base64Image, CarDataObject, ManufacturerOrigin, UploadSource } from "../types"
+import { Base64Image, ManufacturerOrigin, UploadSource } from "../types"
+import { Car } from '../entities';
 
 export class CarUploaderSelector {
   private constructor() { }
@@ -129,11 +130,8 @@ export class CarUploaderSelector {
   }
 
   static getYearMonthFromString(yearMonth: string) {
-    const [yearRaw, monthRaw] = yearMonth.split(" ")
-    return {
-      year: yearRaw.replace("년", ""),
-      month: monthRaw.replace("월", ""),
-    }
+    const [year, month] = yearMonth.split("-")
+    return { year, month }
   }
 
   static getFuelType(fuelType: string) {
@@ -335,7 +333,7 @@ export class CarUploader {
     await this.page.waitForSelector(CarUploaderSelector.fileUploadedPreviewSelector)
   }
 
-  async inputCarInformation(car: CarDataObject) {
+  async inputCarInformation(car: Car) {
     // modelYear: 연식
     const { year, month } = CarUploaderSelector.getYearMonthFromString(car.modelYear)
     await this.page.select(CarUploaderSelector.modelYearSelector, year)
@@ -380,11 +378,11 @@ export class CarUploader {
       },
       {
         selector: CarUploaderSelector.mileageInputSelector,
-        value: car.mileage.replace("Km", "").replace(",", ""),
+        value: car.mileage,
       },
       {
         selector: CarUploaderSelector.displacementInputSelector,
-        value: car.displacement.replace("cc", "").replace(",", "").replace("-", "0"),
+        value: car.displacement,
       },
       {
         selector: CarUploaderSelector.priceInputSelector,
@@ -398,7 +396,7 @@ export class CarUploader {
         if (!input) {
           throw new Error("No proper selector")
         }
-        input.setAttribute('value', value)
+        input.setAttribute('value', value.toString())
       })
     }, evaluateInputList)
   }
@@ -459,7 +457,7 @@ export class CarUploader {
 
     await this.page.goto(this.registerUrl, { waitUntil: "networkidle2"})
     await this.page.waitForSelector(CarUploaderSelector.formBase)
-    const base64ImageList = await this.saveImages(imageDir, source.car.carImgList)
+    const base64ImageList = await this.saveImages(imageDir, source.car.images)
 
     await this.inputCarInformation(source.car)  // form 채우기
     // 차량 카테고리 설정

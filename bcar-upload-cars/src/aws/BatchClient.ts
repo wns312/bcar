@@ -7,6 +7,7 @@ interface SubmitJobCommandOption {
   vcpu?: number
   memory?: number
   timeout?: number
+  attempts?: number
 }
 
 export class BatchClient {
@@ -30,12 +31,13 @@ export class BatchClient {
   }
 
   async submitJob(jobName: string, options: SubmitJobCommandOption = {}) {
-    const { environment, command, vcpu, memory, timeout } = options
+    const { environment, command, vcpu, memory, timeout, attempts } = options
     const input = new SubmitJobCommand({
       jobName,
       jobQueue: this.jobQueue,
       jobDefinition: this.jobDefinition,
       timeout: { attemptDurationSeconds : timeout ? timeout : 900 },
+      retryStrategy: { attempts: attempts ? attempts : 1},
       containerOverrides: {
         environment: [...this.environment, ...environment || [], {
           name: "NODE_ENV",

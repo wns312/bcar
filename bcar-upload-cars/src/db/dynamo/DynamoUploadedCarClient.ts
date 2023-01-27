@@ -1,12 +1,13 @@
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { DynamoBaseClient } from "./DynamoBaseClient"
+import { UploadedCar } from "../../entities"
 
 export class DynamoUploadedCarClient {
   baseClient: DynamoBaseClient;
   tableName: string;
   indexName: string;
 
-  static userPrefix = "#USER-"
+  static userPk = "#USER"
   static carPrefix = "#CAR-"
 
   constructor(region: string, tableName: string, indexName: string) {
@@ -14,71 +15,76 @@ export class DynamoUploadedCarClient {
     this.tableName = tableName;
     this.indexName = indexName;
   }
+  convertUplaodedCar(records: Record<string, AttributeValue>[]) {
+    return records.map(record=>new UploadedCar({
+      accountId: record.accountId.S!,
+      carNumber: record.carNumber.S!,
+      isUploaded: record.isUploaded.BOOL!,
+      registeredAt: parseInt(record.registeredAt.N!),
+    }))
+  }
 
-
-  private createScanInput(PK: string, SK: string, segment?: number, segmentSize?: number, projectionExpressions?: string[]) {
-    return {
+  async queryAll() {
+    const records = await this.baseClient.queryItems({
       TableName: this.tableName,
-      FilterExpression: "begins_with(SK, :s) and begins_with(PK, :p)",
+      KeyConditionExpression: "PK = :p",
       ExpressionAttributeValues: {
-        ":p": { S: PK },
-        ":s": { S: SK },
+        ":p": { S: DynamoUploadedCarClient.userPk },
       },
-      ProjectionExpression: projectionExpressions && projectionExpressions.join(", "),
-      Segment: segment,
-      TotalSegments: segmentSize
-    }
-  }
-
-  private async scan(PK: string, SK: string) {
-    const result = await this.baseClient.scanItems({
-      TableName: this.tableName,
-      FilterExpression: `begins_with(PK, :p) and begins_with(SK, :s)`,
-      ExpressionAttributeValues: {
-        ":p": { S: PK },
-        ":s": { S: SK },
-      }
     })
-    return result.Items!
+    return this.convertUplaodedCar(records)
   }
 
-  private async segmentScan(PK: string, SK: string, segmentSize: number, projectionExpressions?: string[]) {
-    const resultsListPromise = []
-    for (let i = 0; i < segmentSize; i++) {
-      const results = this.baseClient.segmentScan(
-        this.createScanInput(PK, SK, i, segmentSize, projectionExpressions)
-      )
-      resultsListPromise.push(results)
-    }
-    const resultsList = await Promise.all(resultsListPromise)
-    return resultsList.flat()
+  async queryById(id: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "accountId = :i",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPk },
+        ":i": { S: id },
+      },
+    })
+    return this.convertUplaodedCar(records)
   }
 
-
-  async scanUploadedCar() {
-    return this.scan(DynamoUploadedCarClient.userPrefix, DynamoUploadedCarClient.carPrefix)
+  async queryByIdAndIsUploaded(accountId: string, isUploaded: boolean) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "accountId = :i AND isUploaded = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPk },
+        ":i": { S: accountId },
+        ":u": { BOOL: isUploaded }
+      },
+    })
+    return this.convertUplaodedCar(records)
   }
 
-  async segmentScanUploadedCar(segmentSize: number, projectionExpressions?: string[]) {
-    return this.segmentScan(
-      DynamoUploadedCarClient.userPrefix,
-      DynamoUploadedCarClient.carPrefix,
-      segmentSize,
-      projectionExpressions
-    )
-  }
-
-  batchSave(id: string, carNums: string[], isUploaded: boolean) {
+  batchSave(accountId: string, carNums: string[], isUploaded: boolean) {
     const now = Date.now()
     const putItems = carNums.map( carNumber =>({
       Item: {
-        PK: { S: DynamoUploadedCarClient.userPrefix + id },
+        PK: { S: DynamoUploadedCarClient.userPk },
         SK: { S: DynamoUploadedCarClient.carPrefix + carNumber },
-        registeredAt: { N: now.toString() },
+        accountId: { S: accountId },
+        carNumber: { S: carNumber },
         isUploaded: { BOOL: isUploaded },
+        registeredAt: { N: now.toString() },
       }
     }))
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
+  }
+
+  batchDelete(carNums: string[]) {
+    const deleteRequestInput = carNums.map(carNumber => ({
+      Key: {
+        PK: { S: DynamoUploadedCarClient.userPk },
+        SK: { S: DynamoUploadedCarClient.carPrefix + carNumber },
+      }
+    }))
+    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 
   rawBatchDelete(items: Record<string, AttributeValue>[]) {
@@ -88,39 +94,7 @@ export class DynamoUploadedCarClient {
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 
-  batchDelete(id: string, carNums: string[]) {
-    const deleteRequestInput = carNums.map(carNumber => ({
-      Key: {
-        PK: { S: DynamoUploadedCarClient.userPrefix + id },
-        SK: { S: DynamoUploadedCarClient.carPrefix + carNumber },
-      }
-    }))
-    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
-  }
 
-  // 여기서 옵션으로 isUploaded = false인 애들만 가져오는 것을 추가해야한다.
-  queryById(id: string, projectionExpressions?: string[]) {
-    return this.baseClient.queryItems({
-      TableName: this.tableName,
-      KeyConditionExpression: "PK = :p",
-      ExpressionAttributeValues: {
-        ":p": { S: DynamoUploadedCarClient.userPrefix + id },
-      },
-      ProjectionExpression: projectionExpressions && projectionExpressions.join(", ")
-    })
-  }
 
-  queryByIdFilteredByIsUploaded(id: string, isUploaded: boolean, projectionExpressions?: string[]) {
-    return this.baseClient.queryItems({
-      TableName: this.tableName,
-      KeyConditionExpression: "PK = :p",
-      FilterExpression: "isUploaded = :u",
-      ExpressionAttributeValues: {
-        ":p": { S: DynamoUploadedCarClient.userPrefix + id },
-        ":u": { BOOL: isUploaded }
-      },
-      ProjectionExpression: projectionExpressions && projectionExpressions.join(", ")
-    })
-  }
 }
 

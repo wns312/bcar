@@ -4,20 +4,13 @@ import { PageInitializer } from "../utils"
 
 export class DraftCollector {
 
-  constructor(private id: string, private pw: string, private loginUrl: string) {}
-
-  private async login(page: Page) {
-    await page.goto(this.loginUrl, { waitUntil: 'load' });
-    await page.evaluate((id, pw) => {
-      const elements = document.getElementsByClassName('iptD')
-      const idInput = elements[0]
-      const pwInput = elements[1]
-      idInput.setAttribute('value', id)
-      pwInput.setAttribute('value', pw)
-    }, this.id, this.pw)
-    await page.click('button[class="btn_login"]'),
-    await page.waitForNavigation({waitUntil: 'networkidle2'})
-  }
+  constructor(
+    private id: string,
+    private pw: string,
+    private loginUrl: string,
+    private manageUrl: string,
+    private sourceSearchBase: string
+  ) {}
 
   private async waitForSearchList(page: Page) {
     let display = 'none'
@@ -30,7 +23,7 @@ export class DraftCollector {
   }
 
   private async setPrice(page: Page, minPrice?: number, maxPrice?: number) {
-    let url = "http://thebestcar.kr/mypage/mycar.html?searchChecker=1&mode=&pageSize=100"
+    let url = `${this.manageUrl}?searchChecker=1&mode=&pageSize=100`
     if (minPrice) url += `&c_price1=${minPrice}`
     if (maxPrice) url += `&c_price2=${maxPrice}`
     await page.goto(url, {waitUntil: "networkidle2"})
@@ -56,12 +49,11 @@ export class DraftCollector {
       console.log(`Page : ${pageNumber} / ${endPage} (${rawDraftCars.length})`)
 
       const rawDrafts = await page.evaluate(async pageNumber=>{
-        const baseUrl = "http://thebestcar.kr/mypage/_inc_carList.html?searchChecker=1&pageSize=100&c_price2=2000&c_cho=0&listView=y&pageSize=100&page="
         const decoder = new TextDecoder('euc-kr')
         const headers = new Headers()
         headers.append('Content-Type','text/plain; charset=UTF-8')
 
-        const response = await fetch(baseUrl + pageNumber, { headers })
+        const response = await fetch(this.sourceSearchBase + pageNumber, { headers })
         const buffer = await response.arrayBuffer()
         const myDiv = document.createElement('div')
         myDiv.innerHTML = decoder.decode(buffer)
@@ -96,7 +88,7 @@ export class DraftCollector {
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     try {
       const startTime = Date.now()
-      await this.login(page)
+      await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
       await this.setPrice(page, 0, 2000)
 
       const {carAmount, pageAmount} = await this.collectPageAmount(page)
@@ -121,7 +113,7 @@ export class DraftCollector {
     const page = await PageInitializer.createPage()
     page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     try {
-      await this.login(page)
+      await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
       const draftCars = await this.collect(page, endPage)
       return draftCars
     } catch (error) {

@@ -1,14 +1,15 @@
 import { categoryConvertor, companyConvertor, modelDetailConverter } from "./converters"
-import { CarDataObject, CarManufacturer, CarSegment, ManufacturerOrigin, UploadSource } from "../types"
+import { CarManufacturer, CarSegment, ManufacturerOrigin, UploadSource } from "../types"
+import { Car } from "../entities"
 
 export class CarClassifier {
   constructor(
-    private cars: CarDataObject[],
+    private cars: Car[],
     private segmentMap: Map<string, CarSegment>,
     private companyMap: Map<string, CarManufacturer>,
   ) {}
 
-  private classify(car: CarDataObject) {
+  private classify(car: Car) {
     const convertedCategory = categoryConvertor.get(car.category)
     const convertedCompany = companyConvertor.get(car.company)
 

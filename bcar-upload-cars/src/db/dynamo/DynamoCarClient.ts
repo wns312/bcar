@@ -17,6 +17,30 @@ export class DynamoCarClient {
     this.indexName = indexName;
   }
 
+  convertCars(records: Record<string, AttributeValue>[]) {
+    return records.map(record=>new Car({
+      category: record.category.S!,
+      displacement: parseInt(record.displacement.N!),
+      carNumber: record.carNumber.S!,
+      modelYear: record.modelYear.S!,
+      mileage: parseInt(record.mileage.N!),
+      color: record.color.S!,
+      gearBox: record.gearBox.S!,
+      fuelType: record.fuelType.S!,
+      presentationNumber: record.presentationNumber.S!,
+      hasAccident: record.hasAccident.S!,
+      registerNumber: record.registerNumber.S!,
+      presentationsDate: record.presentationsDate.S!,
+      hasSeizure: record.hasSeizure.BOOL!,
+      hasMortgage: record.hasMortgage.BOOL!,
+      carCheckSrc: record.carCheckSrc.S!,
+      images: record.images.SS!,
+      title: record.title.S!,
+      price: parseInt(record.price.N!),
+      company: record.company.S!,
+    }))
+  }
+
   private createQueryInput(pk: string, projectionExpressions?: string[]): QueryCommandInput {
     return {
       TableName: this.tableName,
@@ -38,7 +62,7 @@ export class DynamoCarClient {
   async QueryCarsByCarNumbers(carNumbers: string[]) {
     const responses = await this.baseClient.batchGetItems(
       this.tableName,
-      ...carNumbers.map(carNumber=>[DynamoCarClient.carPK, carNumber])
+      ...carNumbers.map(carNumber=>[DynamoCarClient.carPK, DynamoCarClient.carPrefix + carNumber])
     )
     const records = responses.map(response=>{
       if (response.$metadata.httpStatusCode !== 200) {
@@ -47,19 +71,25 @@ export class DynamoCarClient {
       }
       return response.Responses![this.tableName]
     }).flat()
-    return records
+    return this.convertCars(records)
   }
 
-  queryCars(projectionExpressions?: string[]) {
+  async queryCars() {
+    const input = this.createQueryInput(DynamoCarClient.carPK)
+    const records = await this.baseClient.queryItems(input)
+    return this.convertCars(records)
+  }
+
+  queryCarsWithProjection(projectionExpressions: string[]) {
     const input = this.createQueryInput(DynamoCarClient.carPK, projectionExpressions)
     return this.baseClient.queryItems(input)
   }
 
-  batchDeleteCars(carNums: string[]) {
-    const deleteRequestInput = carNums.map(carNumber => ({
+  batchDeleteCars(cars: Car[]) {
+    const deleteRequestInput = cars.map(car => ({
       Key: {
         PK: { S: DynamoCarClient.carPK },
-        SK: { S: DynamoCarClient.carPrefix + carNumber },
+        SK: { S: DynamoCarClient.carPrefix + car.carNumber },
       }
     }))
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
@@ -96,7 +126,19 @@ export class DynamoCarClient {
   }
 
   // Draft
-  queryDrafts(projectionExpressions?: string[]) {
+  async queryDrafts() {
+    const input = this.createQueryInput(DynamoCarClient.draftPK)
+    const records = await this.baseClient.queryItems(input)
+    return records.map(record=>new DraftCar({
+      title: record.title.S!,
+      company: record.company.S!,
+      carNumber: record.carNumber.S!,
+      detailPageNum: record.detailPageNum.S!,
+      price: parseInt(record.price.N!),
+    }))
+  }
+
+  queryDraftWithProjection(projectionExpressions: string[]) {
     const input = this.createQueryInput(DynamoCarClient.draftPK, projectionExpressions)
     return this.baseClient.queryItems(input)
   }
@@ -133,15 +175,13 @@ export class DynamoCarClient {
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
   }
 
-  batchDeleteDrafts(carNums: string[]) {
-    const deleteRequestInput = carNums.map(carNumber => ({
+  batchDeleteDrafts(cars: DraftCar[]) {
+    const deleteRequestInput = cars.map(car => ({
       Key: {
         PK: { S: DynamoCarClient.draftPK },
-        SK: { S: DynamoCarClient.carPrefix + carNumber },
+        SK: { S: DynamoCarClient.carPrefix + car.carNumber },
       }
     }))
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
-
-
 }

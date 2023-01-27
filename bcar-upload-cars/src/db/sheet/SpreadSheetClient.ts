@@ -2,7 +2,7 @@
 import { google, sheets_v4 } from "googleapis"
 import { envs } from "../../configs"
 import { ResponseError } from "../../errors"
-import { Account, KCRURL } from "../../types"
+import { Account, RegionUrl } from "../../entities"
 
 export class SheetClient {
   static accountSheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
@@ -10,10 +10,10 @@ export class SheetClient {
   static accountRangeStart = "A3"
   static accountRangeEnd = "F"
 
-  static kcrSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
-  static kcrSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
-  static kcrRangeStart = "A3"
-  static kcrRangeEnd = "D"
+  static regionSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
+  static regionSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
+  static regionRangeStart = "A3"
+  static regionRangeEnd = "B"
   sheets: sheets_v4.Sheets
 
   constructor(email: string, key: string) {
@@ -21,7 +21,6 @@ export class SheetClient {
     this.sheets = google.sheets({ version: "v4", auth })
   }
 
-  // Account
   get accountRange() {
     const sheetName = SheetClient.accountSheetName
     const rangeStart = SheetClient.accountRangeStart
@@ -29,16 +28,11 @@ export class SheetClient {
     return `${sheetName}!${rangeStart}:${rangeEnd}`
   }
 
-  private convertAccounts(rawList: string[][]): Account[] {
-    return rawList?.map(([id, pw, region, isTest, isError, logUrl, error]) => ({
-      id,
-      pw,
-      region,
-      isTestAccount: isTest == "TRUE" ? true : false,
-      isErrorOccured: isError == "TRUE" ? true : false,
-      logStreamUrl: isError ? logUrl : null,
-      errorContent: isError ? error : null,
-    }))
+  get regionUrlRange() {
+    const sheetName = SheetClient.regionSheetName
+    const rangeStart = SheetClient.regionRangeStart
+    const rangeEnd = SheetClient.regionRangeEnd
+    return `${sheetName}!${rangeStart}:${rangeEnd}`
   }
 
   async getAccounts() {
@@ -52,46 +46,23 @@ export class SheetClient {
     }
     const values = response.data.values as string[][]
     const accountRawList = values?.splice(1)
-    return this.convertAccounts(accountRawList)
+    return accountRawList.map(
+      ([id, pw, region, isTestAccount, isErrorOccured, logStreamUrl, errorContent]) => new Account({
+        id,
+        pw,
+        region,
+        isTestAccount: isTestAccount == "TRUE" ? true : false,
+        isErrorOccured: isErrorOccured == "TRUE" ? true : false,
+        logStreamUrl: logStreamUrl,
+        errorContent: errorContent,
+      })
+    )
   }
 
-  async appendAccount(id: string, pw: string, isTestAccount: boolean) {
-    const response = await this.sheets.spreadsheets.values.append({
-      spreadsheetId: SheetClient.accountSpreadsheetId,
-      range: SheetClient.accountSheetName,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [ [id, pw, isTestAccount, false] ]
-      }
-    })
-    if (response.status != 200) {
-      console.error(response);
-      throw new ResponseError(response.statusText)
-    }
-    return response.data
-  }
-
-  // KCR
-  get kcrRange() {
-    const sheetName = SheetClient.kcrSheetName
-    const rangeStart = SheetClient.kcrRangeStart
-    const rangeEnd = SheetClient.kcrRangeEnd
-    return `${sheetName}!${rangeStart}:${rangeEnd}`
-  }
-
-  private convertKcrs(rawList: string[][]): KCRURL[] {
-    return rawList?.map(([region, loginUrl, registerUrl, manageUrl]) =>({
-      region,
-      loginUrl,
-      registerUrl,
-      manageUrl,
-    }))
-  }
-
-  async getKcrs() {
+  async getRegionUrls() {
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: SheetClient.kcrSpreadsheetId,
-      range: this.kcrRange,
+      spreadsheetId: SheetClient.regionSpreadsheetId,
+      range: this.regionUrlRange,
     });
     if (response.status != 200) {
       console.error(response);
@@ -99,6 +70,9 @@ export class SheetClient {
     }
     const values = response.data.values as string[][]
     const rawList = values?.splice(1)
-    return this.convertKcrs(rawList)
+    return rawList.map(([region, baseUrl]) =>new RegionUrl({
+      region,
+      baseUrl
+    }))
   }
 }
