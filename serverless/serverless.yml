@@ -20,6 +20,11 @@ provider:
 functions:
   checkIPAddress:
     handler: index.checkIPAddress
+  collectDrafts:
+    handler: index.collectDrafts
+    events:
+      - schedule: cron(0 12 * * ? *) # 저녁 9시
+      - schedule: cron(0 21 * * ? *) # 아침 6시
   manageCars:
     handler: index.manageCars
     events:

@@ -48,12 +48,11 @@ export class DraftCollector {
     for (let pageNumber = 1; pageNumber < endPage; pageNumber++) {
       console.log(`Page : ${pageNumber} / ${endPage} (${rawDraftCars.length})`)
 
-      const rawDrafts = await page.evaluate(async pageNumber=>{
+      const rawDrafts = await page.evaluate(async (sourceSearchBase, pageNumber)=>{
         const decoder = new TextDecoder('euc-kr')
         const headers = new Headers()
         headers.append('Content-Type','text/plain; charset=UTF-8')
-
-        const response = await fetch(this.sourceSearchBase + pageNumber, { headers })
+        const response = await fetch(sourceSearchBase + pageNumber, { headers })
         const buffer = await response.arrayBuffer()
         const myDiv = document.createElement('div')
         myDiv.innerHTML = decoder.decode(buffer)
@@ -77,7 +76,7 @@ export class DraftCollector {
               price: parseInt(price),
           }
         })
-      }, pageNumber)
+      }, this.sourceSearchBase, pageNumber)
       rawDraftCars = [...rawDraftCars, ...rawDrafts.map(draft=>new DraftCar(draft))]
     }
     return rawDraftCars

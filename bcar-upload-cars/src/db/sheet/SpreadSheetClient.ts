@@ -14,7 +14,10 @@ export class SheetClient {
   static regionSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
   static regionRangeStart = "A3"
   static regionRangeEnd = "B"
+
   sheets: sheets_v4.Sheets
+  accounts: Account[] = []
+  regionUrls: RegionUrl[] = []
 
   constructor(email: string, key: string) {
     const auth = new google.auth.JWT(email, undefined, key, ["https://www.googleapis.com/auth/spreadsheets"])
@@ -36,6 +39,9 @@ export class SheetClient {
   }
 
   async getAccounts() {
+    if (this.accounts.length) {
+      return this.accounts
+    }
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId: SheetClient.accountSpreadsheetId,
       range: this.accountRange,
@@ -46,8 +52,9 @@ export class SheetClient {
     }
     const values = response.data.values as string[][]
     const accountRawList = values?.splice(1)
-    return accountRawList.map(
-      ([id, pw, region, isTestAccount, isErrorOccured, logStreamUrl, errorContent]) => new Account({
+    this.accounts = accountRawList.map(
+      ([index, id, pw, region, isTestAccount, isErrorOccured, logStreamUrl, errorContent]) => new Account({
+        index: parseInt(index),
         id,
         pw,
         region,
@@ -57,9 +64,13 @@ export class SheetClient {
         errorContent: errorContent,
       })
     )
+    return this.accounts
   }
 
   async getRegionUrls() {
+    if (this.accounts.length) {
+      return this.regionUrls
+    }
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId: SheetClient.regionSpreadsheetId,
       range: this.regionUrlRange,
@@ -70,9 +81,71 @@ export class SheetClient {
     }
     const values = response.data.values as string[][]
     const rawList = values?.splice(1)
-    return rawList.map(([region, baseUrl]) =>new RegionUrl({
+    this.regionUrls = rawList.map(([region, baseUrl]) =>new RegionUrl({
       region,
       baseUrl
     }))
+    return this.regionUrls
+  }
+
+  async getAccountIdMap() {
+    const accounts = await this.getAccounts()
+    return new Map<string, Account>(accounts.map(account=>[account.id, account]))
+  }
+
+  async getAccountIndexMap() {
+    const accounts = await this.getAccounts()
+    return new Map<number, Account>(accounts.map(account=>[account.index, account]))
+  }
+
+  async getRegionUrlMap() {
+    const regionsUrls = await this.getRegionUrls()
+    return new Map<string, RegionUrl>(regionsUrls.map(regionsUrl=>[regionsUrl.region, regionsUrl]))
+  }
+
+  async getAccountAndRegionUrl(id: string) {
+    const [accountMap, regionUrlMap] = await Promise.all([
+      this.getAccountIdMap(),
+      this.getRegionUrlMap(),
+    ])
+    const account = accountMap.get(id)
+    if (!account) {
+      throw new Error("Cannot find account");
+    }
+    const regionUrl = regionUrlMap.get(account.region)
+    if (!regionUrl) {
+      throw new Error("Cannot find regionUrl");
+    }
+    return { account, regionUrl }
+  }
+
+  async getTestAccountAndRegionUrl() {
+    const [accounts, regionUrlMap] = await Promise.all([
+      this.getAccounts(),
+      this.getRegionUrlMap(),
+    ])
+    const testAccounts = accounts.filter(account=>account.isTestAccount)
+    if (!testAccounts.length) {
+      throw new Error("Cannot find account")
+    }
+    const account = testAccounts[0]
+    const regionUrl = regionUrlMap.get(account.region)
+    if (!regionUrl) {
+      throw new Error("Cannot find regionUrl")
+    }
+    return { account, regionUrl }
+  }
+
+  async getNextAccount(id: string) {
+    const [idMap, indexMap] = await Promise.all([
+      this.getAccountIdMap(),
+      this.getAccountIndexMap()
+    ])
+
+    const currentAccount = idMap.get(id)
+    if (!currentAccount) {
+      throw new Error(`CurrentAccount does not exist :${id}`)
+    }
+    return indexMap.get(currentAccount.index + 1)
   }
 }

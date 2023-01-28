@@ -56,7 +56,7 @@ export class PageInitializer {
     })
   }
 
-  static deActivateEvents(page: Page) {
+  static deactivateEvents(page: Page) {
     page.off('console', msg => console.log('PAGE LOG:', msg.text()))
     page.off('pageerror', err => {
       console.error('Page error: ' + err.toString());

@@ -10,7 +10,23 @@ if (!Object.values(envs).every(env => env)) {
   throw new Error('Required envs are not exist.')
   }
 
-export async function manageCars(event: APIGatewayEvent,context: Context) {
+export async function collectDrafts(event: APIGatewayEvent, context: Context) {
+  const batchClient = new BatchClient({ region: envs.REGION })
+  const response = await batchClient.send(new SubmitJobCommand({
+    jobName: collectDrafts.name,
+    jobDefinition: envs.JOB_DEFINITION_NAME,
+    jobQueue: envs.JOB_QUEUE_NAME,
+    containerOverrides: {
+      command: ["node","/app/dist/src/index.js", collectDrafts.name],
+      resourceRequirements: [
+        { type: "VCPU", value: "1.0" },
+        { type: "MEMORY", value: "2048" },
+      ]
+    }
+  }))
+  console.log(response)
+}
+export async function manageCars(event: APIGatewayEvent, context: Context) {
   const batchClient = new BatchClient({ region: envs.REGION })
   const response = await batchClient.send(new SubmitJobCommand({
     jobName: manageCars.name,
@@ -24,10 +40,10 @@ export async function manageCars(event: APIGatewayEvent,context: Context) {
       ]
     }
   }))
-  console.log(response);
+  console.log(response)
 }
 
-export async function checkIPAddress(event: APIGatewayEvent,context: Context) {
+export async function checkIPAddress(event: APIGatewayEvent, context: Context) {
   const batchClient = new BatchClient({ region: envs.REGION })
   const response = await batchClient.send(new SubmitJobCommand({
     jobName: checkIPAddress.name,
@@ -41,6 +57,6 @@ export async function checkIPAddress(event: APIGatewayEvent,context: Context) {
       ]
     }
   }))
-  console.log(response);
+  console.log(response)
 }
 

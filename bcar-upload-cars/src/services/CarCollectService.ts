@@ -37,16 +37,26 @@ export class CarCollectService {
     const { carsShouldDelete, draftCarShouldCrawl } = this.filterDrafts(draftCars, cars)
 
     console.log("draftCarShouldCrawl: ", draftCarShouldCrawl.map(draftCar=>draftCar.carNumber))
-    console.log("carsShouldDelete : ", carsShouldDelete)
+    console.log("carsShouldDelete : ", carsShouldDelete.map(car=>car.carNumber))
 
     if (draftCarShouldCrawl.length) {
       const draftSaveResponses = await this.dynamoCarClient.batchSaveDraft(draftCarShouldCrawl)
-      console.log("Draft save responses :", draftSaveResponses)
+      console.log("Draft save responses :")
+      draftSaveResponses.forEach(response=> {
+        if (response.$metadata.httpStatusCode !== 200) {
+          console.log(response)
+        }
+      })
     }
 
     if (carsShouldDelete.length) {
       const deleteresponses = await this.dynamoCarClient.batchDeleteCars(carsShouldDelete)
-      console.log("Delete response :", deleteresponses)
+      console.log("Delete response :")
+      deleteresponses.forEach(response=> {
+        if (response.$metadata.httpStatusCode !== 200) {
+          console.log(response)
+        }
+      })
     }
     return draftCarShouldCrawl.length
   }

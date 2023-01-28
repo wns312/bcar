@@ -31,12 +31,10 @@ export class CarSynchronizer {
       if (!photoTag) throw new Error("No photoTag tag")
 
       const carNum = await photoTag.evaluate(el => el.textContent)
-      console.log(carNum);
-      if(!carNum) throw new Error("No car number")
+      if(!carNum) throw new Error(`No car number : ${carNum}`)
 
       const isCarExist = this.existingCars.includes(carNum)
       if (isCarExist) {
-        console.log(`${carNum} exists. continue ...`);
         return { carNum, isDeleted: false }  // 여기선 isDeleted: false를 리턴
       }
 
@@ -65,19 +63,20 @@ export class CarSynchronizer {
       aButton!.dispatchEvent(new Event('click', { bubbles: true }));
     }, deleteConfirmButtonSelector)
 
+    await this.page.waitForNavigation({ waitUntil: "networkidle2"})
+
     return existingCarNums
   }
 
   async sync() {
     let pageNumber = await this.getPageLength()
     let existingCarNums: string[] = []
-    console.log(pageNumber);
 
     while (pageNumber) {
+      console.log(`Page: ${pageNumber}`)
       const lastPageUrl = this.manageUrl + `?page=${pageNumber}`
       await this.page.goto(lastPageUrl, { waitUntil: "networkidle2"})
       await this.page.waitForSelector("#_carManagement > table")
-      await delay(1000)
       const existingCarNumsInPage = await this.deleteExpiredCars()
       existingCarNums = [...existingCarNums, ...existingCarNumsInPage]
       pageNumber -= 1

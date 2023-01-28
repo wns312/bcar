@@ -1,7 +1,8 @@
 import { BatchClient as _BatchClient, SubmitJobCommand, KeyValuePair } from "@aws-sdk/client-batch";
 import { envs } from "../configs"
 
-interface SubmitJobCommandOption {
+interface SubmitJobCommandInput {
+  jobName: string
   command?: string[]
   environment?: KeyValuePair[]
   vcpu?: number
@@ -24,14 +25,15 @@ export class BatchClient {
   }
 
   async submitFunction(id: string, functionName: string) {
-    return this.submitJob(`${functionName}-${id}`, {
+    return this.submitJob({
+      jobName: `${functionName}-${id}`,
       environment: [{ name: "KCR_ID", value: id }],
       command: ["node", "/app/dist/src/index.js", functionName]
     })
   }
 
-  async submitJob(jobName: string, options: SubmitJobCommandOption = {}) {
-    const { environment, command, vcpu, memory, timeout, attempts } = options
+  async submitJob(options: SubmitJobCommandInput) {
+    const { jobName, environment, command, vcpu, memory, timeout, attempts } = options
     const input = new SubmitJobCommand({
       jobName,
       jobQueue: this.jobQueue,

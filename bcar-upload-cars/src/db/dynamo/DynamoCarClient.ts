@@ -34,7 +34,7 @@ export class DynamoCarClient {
       hasSeizure: record.hasSeizure.BOOL!,
       hasMortgage: record.hasMortgage.BOOL!,
       carCheckSrc: record.carCheckSrc.S!,
-      images: record.images.SS!,
+      images: record.images.L!.map(attr=>attr.S!),
       title: record.title.S!,
       price: parseInt(record.price.N!),
       company: record.company.S!,
@@ -95,6 +95,32 @@ export class DynamoCarClient {
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 
+  batchDeleteCarsByCarNumbers(carNumbers: string[]) {
+    const deleteRequestInput = carNumbers.map(carNumber => ({
+      Key: {
+        PK: { S: DynamoCarClient.carPK },
+        SK: { S: DynamoCarClient.carPrefix + carNumber },
+      }
+    }))
+    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
+  }
+
+  async deleteAllCars() {
+    const carNumberAttrs = await this.queryCarsWithProjection(["carNumber"])
+    const carNumbers = carNumberAttrs.map(attr=>attr.carNumber.S!)
+    console.log("Existing cars: ", carNumbers.length)
+    if (!carNumbers.length) return
+
+    const responses = await this.batchDeleteCarsByCarNumbers(carNumbers)
+    responses.forEach(response=>{
+      console.error(response)
+      if (response.$metadata.httpStatusCode !== 200) {
+        console.error(response);
+        throw new Error("Response Error")
+      }
+    })
+  }
+
   batchSaveCar(cars: Car[]) {
     const putItems = cars.map(car=>({
       Item: {
@@ -118,7 +144,7 @@ export class DynamoCarClient {
         hasSeizure: { BOOL: car.hasSeizure },
         hasMortgage: { BOOL: car.hasMortgage },
         carCheckSrc: { S: car.carCheckSrc },
-        images: { SS: car.images }
+        images: { L: car.images.map(image=>({S: image})) }
       }
     }))
 

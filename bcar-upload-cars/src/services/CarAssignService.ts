@@ -6,7 +6,6 @@ import { CarClassifier, CategoryInitializer } from "../utils"
 export class CarAssignService {
 
   static MAX_COUNT = 200
-  _accountMap?: Map<string, Account>
 
   constructor(
     private sheetClient: SheetClient,
@@ -35,7 +34,7 @@ export class CarAssignService {
     if (uploadedCarShouldBeDeleted.length) {
       // Delete
       console.log(uploadedCarShouldBeDeleted);
-      const deleteResults = await this.dynamoUploadedCarClient.batchDelete(uploadedCarShouldBeDeleted.map(car=>car.carNumber))
+      const deleteResults = await this.dynamoUploadedCarClient.batchDelete(uploadedCarShouldBeDeleted)
       console.log("Delete result: ");
       console.log(deleteResults);
     }
@@ -44,24 +43,15 @@ export class CarAssignService {
     return unregisteredCars
   }
 
-  async getAccountMap() {
-    if (!this._accountMap) {
-      const allUsers = await this.sheetClient.getAccounts()
-      this._accountMap = new Map<string, Account>(allUsers.map(user=>[user.id, user]))
-    }
-    return this._accountMap!
-  }
-
-
   async assign() {
     const [unregisteredCars, { segmentMap, companyMap }, accountMap] = await Promise.all([
       this.getUnregisteredCars(),
       this.categoryInitializer.initializeMaps(),
-      this.getAccountMap(),
+      this.sheetClient.getAccountIdMap(),
     ])
 
-    const carClassifier = new CarClassifier(unregisteredCars, segmentMap, companyMap)
-    let classifiedCarNums = carClassifier.classifyAll().map(source=>source.car.carNumber.toString())
+    const classifiedSources = new CarClassifier(unregisteredCars, segmentMap, companyMap).classifyAll()
+    let classifiedCarNums = classifiedSources.map(source=>source.car.carNumber.toString())
     console.log(classifiedCarNums);
 
     const userIds = Array.from(accountMap.keys())
@@ -87,9 +77,12 @@ export class CarAssignService {
 
       const spliceStartIndex = amountToAssign < amountCanAssign ? amountCanAssign-amountToAssign : 0
       const splicedCars = classifiedCarNums.splice(spliceStartIndex)
-      const responses = await this.dynamoUploadedCarClient.batchSave(id, splicedCars, false)
-      console.log("Save result: ");
-      console.log(responses);
+      const responses = await this.dynamoUploadedCarClient.batchSaveByCarNumbers(id, splicedCars, false)
+      responses.forEach(response=> {
+        if (response.$metadata.httpStatusCode !== 200) {
+          console.log(response)
+        }
+      })
     }
   }
 }

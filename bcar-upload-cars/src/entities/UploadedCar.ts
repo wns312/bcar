@@ -2,7 +2,6 @@ interface IUploadedCar {
   accountId: string
   carNumber: string
   isUploaded: boolean
-  registeredAt: number
 }
 
 export class UploadedCar implements IUploadedCar {
@@ -13,5 +12,4 @@ export class UploadedCar implements IUploadedCar {
   accountId!: string
   carNumber!: string
   isUploaded!: boolean
-  registeredAt!: number
 }

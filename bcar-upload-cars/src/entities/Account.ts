@@ -1,4 +1,5 @@
 interface IAccount {
+  index: number
   id: string
   pw: string
   region: string
@@ -13,6 +14,7 @@ export class Account {
     Object.assign(this, data)
   }
 
+  index!: number
   id!: string
   pw!: string
   region!: string

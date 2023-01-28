@@ -10,14 +10,8 @@ export class CategoryService {
 
 
   async collectCategoryInfo() {
-    const accounts = await this.sheetClient.getAccounts()
-    const { id, pw, region } = accounts[0]
-    const urls = await this.sheetClient.getRegionUrls()
-    const url = urls.find(url=>url.region === region)
-    if (!url) throw new Error("No proper url");
-    const { loginUrl, registerUrl } = url
-
-    await this.categoryCollector.execute(id, pw, loginUrl, registerUrl)
+    const { account, regionUrl } = await this.sheetClient.getTestAccountAndRegionUrl()
+    await this.categoryCollector.execute(account.id, account.pw, regionUrl.loginUrl, regionUrl.registerUrl)
 
     const carManufacturerMap = this.categoryCollector.carManufacturerMap
     const carSegmentMap = this.categoryCollector.carSegmentMap

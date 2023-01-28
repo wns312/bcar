@@ -405,14 +405,20 @@ export class CarUploader {
     const { origin, carSegment, carCompany, carModel, carDetailModel, car } = source
     const originSelector = CarUploaderSelector.getOriginSelector(origin)
     const segmentSelector = CarUploaderSelector.getSegmentSelector(carSegment.name)
-    // const companySelector1 = CarUploader.companyBase + `:nth-child(${carCompany.index})`
-    const companySelector2 = CarUploaderSelector.companyDataValueBase + carCompany!.dataValue
+    const companySelector = CarUploaderSelector.companyDataValueBase + carCompany!.dataValue
 
     await this.page.click(originSelector)
     await this.page.click(segmentSelector)
 
-    await this.page.waitForSelector(companySelector2)  // await this.page.click(companySelector1)
-    await this.page.click(companySelector2)
+    if (carCompany && carCompany.name === "기타") {
+      await this.page.waitForSelector(CarUploaderSelector.companyBase)
+      const companyLiList = await this.page.$$(CarUploaderSelector.companyBase)
+      const companyEtcLi = companyLiList[companyLiList.length-1]
+      await companyEtcLi.click()
+    } else {
+      await this.page.waitForSelector(companySelector)
+      await this.page.click(companySelector)
+    }
 
     if (!carModel) {
       if (origin === ManufacturerOrigin.Domestic) {
@@ -428,13 +434,6 @@ export class CarUploader {
       return
     }
 
-    // 여기서 dataValue로 가져오면 안된다.
-    // dataValue로 가져왔을 때 발생할 수 있는 문제점
-    // 1. 만약 SUV라고 카테고리를 지정했는데 실제로는 경차라면 절대 찾을 수 없다.
-    // 2. 따라서 waitForSelector는 timeout을 발생시키게 된다.
-    // 3. 이 경우 dataValue로 가져오는 것이 아닌 selector 전체로 wait을 하고, 리스트를 가져와서 찾는것이 낫다.
-    // 4. 이렇게 찾았을 때 없는 경우 기타로 빼면 되기 때문이다.
-    // 5. 추가로, dataValue로 가져오는 이런 경우는 전부 수정되는 것이 바람직하다.
     const modelSelector = CarUploaderSelector.modelDataValueBase + carModel?.dataValue
     await this.page.waitForSelector(modelSelector)
     await this.page.click(modelSelector)
@@ -470,7 +469,6 @@ export class CarUploader {
 
   async uploadCars() {
     for (const source of this.sources) {
-      console.log(source.car.carNumber);
       const imageDir = CarUploader.getImageDir(this.id, source.car.carNumber)
       if(!existsSync(imageDir)) {
         await mkdir(imageDir)
@@ -481,27 +479,20 @@ export class CarUploader {
       } catch (error) {
         this.failedSources.push(source)
         // 처리해야하는 에러. 종료되어야 한다. 또는 재시작 되어야 함
-        // 에러 이름: Error
         // 에러 메시지: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
-        // 에러: Error: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
-        // No element found for selector: #categoryId > dl.ct_b > dd > ul > li.cateid-00000026
-        // WaitForSelector로 처리. 아주 가끔 에러를 일으킴
-        if (
-          error instanceof ProtocolError
-          || !(error instanceof Error)
-          ) {
+        // 에러 메시지: net::ERR_CONNECTION_TIMED_OUT
+        if (error instanceof ProtocolError || !(error instanceof Error)) {
           console.log("Unexpected error: stop execution");
           return
         }
-        console.error(
-          "차량 등록에 실패했습니다."
-          + `\n차량 번호: ${source.car.carNumber}`
-          + `\n차량 제목: ${source.car.title}`
-          + `\n에러 이름: ${error.name}`
-          + `\n에러 메시지: ${error.message}`
-          + `\n에러: ${error}`
-          + `\n스택: ${error.stack}`
-        )
+        console.error("차량 등록에 실패했습니다.")
+        console.error(source.car.carNumber)
+        console.error(source.origin)
+        console.error(source.carSegment)
+        console.error(source.carCompany)
+        console.error(error.name)
+        console.error(error.stack)
+
       } finally {
         if(existsSync(imageDir)) {
           await rm(imageDir, { recursive: true, force: true })

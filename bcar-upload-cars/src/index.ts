@@ -1,11 +1,12 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
-import { CategoryCollector, DetailCollector, DraftCollector } from "./automations"
+import { AccountResetter, CategoryCollector, DetailCollector, DraftCollector, InvalidCarRemover } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
-import { CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarSyncService } from "./services"
+import { AccountResetService, CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarRemoveService, UploadedCarSyncService } from "./services"
 import { CategoryInitializer } from "./utils"
+import { Account } from "./entities"
 
 const {
   BCAR_CATEGORY_INDEX,
@@ -28,6 +29,8 @@ const {
 const draftCollector = new DraftCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE, SOURCE_MANAGE_PAGE, SOURCE_SEARCH_BASE)
 const detailCollector = new DetailCollector()
 const categoryCollector = new CategoryCollector()
+const accountResetter = new AccountResetter()
+const invalidCarRemover = new InvalidCarRemover()
 // Repositories
 const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
 const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
@@ -45,6 +48,8 @@ const carAssignService = new CarAssignService(sheetClient, dynamoCarClient, dyna
 const uploadedCarSyncService = new UploadedCarSyncService(dynamoUploadedCarClient, sheetClient)
 const carUploadService = new CarUploadService(sheetClient, dynamoCarClient, dynamoUploadedCarClient, categoryInitializer)
 const categoryService = new CategoryService(sheetClient, categoryCollector, dynamoCategoryClient)
+const accountResetService = new AccountResetService(sheetClient, dynamoUploadedCarClient, accountResetter)
+const uploadedCarRemoveService = new UploadedCarRemoveService(sheetClient, dynamoUploadedCarClient, invalidCarRemover)
 
 // VCPU: 1.0 / MEMORY: 2048
 async function collectDrafts() {
@@ -54,13 +59,11 @@ async function collectDrafts() {
 
 // VCPU: 0.25 / MEMORY: 512
 async function triggerCollectingDetails() {
-  const response = await batchClient.submitJob(
-    collectDetails.name,
-    {
-      command: ["node", "/app/dist/src/index.js", collectDetails.name],
-      timeout: 60 * 30,
-    }
-  )
+  const response = await batchClient.submitJob({
+    jobName: collectDetails.name,
+    command: ["node", "/app/dist/src/index.js", collectDetails.name],
+    timeout: 60 * 30,
+  })
   console.log(response)
 }
 
@@ -73,20 +76,20 @@ async function collectDetails() {
 async function manageCars() {
   await carAssignService.assign()
 
-  const accountMap = await carAssignService.getAccountMap()
-  const userIDs = Array.from(accountMap.keys())
-  console.log(userIDs)
+  const accountIndexMap = await sheetClient.getAccountIndexMap()
+  const firstAccount = accountIndexMap.get(1)
+  if (!firstAccount) {
+    throw new Error("There is no first account")
+  }
 
-  const responses = await Promise.all(
-    userIDs.map(id=>batchClient.submitJob(
-      `${syncCars.name}-${id}`,
-      {
-        command: ["node", "/app/dist/src/index.js", syncCars.name],
-        environment: [{ name: "KCR_ID", value: id }],
-      }
-    ))
-  )
-  console.log(responses);
+  console.log(`Submit first account: ${firstAccount.id}`);
+
+  const response = await batchClient.submitJob({
+    jobName: `${syncCars.name}-${firstAccount.id}`,
+    command: ["node", "/app/dist/src/index.js", syncCars.name],
+    environment: [{ name: "KCR_ID", value: firstAccount.id }],
+  })
+  console.log(response)
 }
 
 // VCPU: 2.0 / MEMORY: 4096
@@ -96,22 +99,64 @@ async function syncCars() {
   const kcrId = process.env.KCR_ID
   if (!kcrId) throw new Error("No id env")
 
-  const response = await batchClient.submitJob(
-    `${uploadCar.name}-${kcrId}`,
-    {
-      command: ["node", "/app/dist/src/index.js", uploadCar.name],
-      environment: [{ name: "KCR_ID", value: kcrId }],
-      timeout: 60 * 30,
-      attempts: 3
-    }
-  )
+  const response = await batchClient.submitJob({
+    jobName: `${uploadCars.name}-${kcrId}`,
+    command: ["node", "/app/dist/src/index.js", uploadCars.name],
+    environment: [{ name: "KCR_ID", value: kcrId }],
+    timeout: 60 * 30,
+    attempts: 3
+  })
   console.log(response)
 }
 
+
 // VCPU: 2.0 / MEMORY: 4096
-async function uploadCar() {
-  await carUploadService.uploadCarByEnv()
+async function uploadCars() {
+  const kcrId = process.env.KCR_ID
+  if (!kcrId) {
+    throw new Error("No id env");
+  }
+  await carUploadService.uploadCarById(kcrId)
   await uploadedCarSyncService.syncCarsByEnv()
+
+  const carNumbers = await dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(kcrId, false)
+  if (carNumbers.length) {
+    throw new Error("There is more cars to be uploaded. throw error for retry.")
+  }
+
+  const nextAccount = await sheetClient.getNextAccount(kcrId)
+  if (!nextAccount) {
+    console.log("There is no next account. end execution.")
+    return
+  }
+
+  console.log(`Execute next sync: ${nextAccount.id}`)
+
+  const response = await batchClient.submitJob({
+    jobName: `${syncCars.name}-${nextAccount.id}`,
+    command: ["node", "/app/dist/src/index.js", syncCars.name],
+    environment: [{ name: "KCR_ID", value: nextAccount.id }],
+  })
+  console.log(response)
+}
+
+
+// VCPU: 1.0 / MEMORY: 2048
+async function resetAllUploadedCarAsFalse() {
+  await accountResetService.resetAll()
+}
+
+// VCPU: 1.0 / MEMORY: 2048
+async function resetUploadedCarAsFalse() {
+  await accountResetService.resetByEnv()
+}
+
+// VCPU: 1.0 / MEMORY: 2048
+async function removeInvalidImageUploadedCars() {
+  await uploadedCarRemoveService.removeByEnv()
+}
+async function removeAllInvalidImageUploadedCars() {
+  await uploadedCarRemoveService.removeAll()
 }
 
 // VCPU: 1.0 / MEMORY: 2048
@@ -119,26 +164,6 @@ async function collectCategory() {
   await categoryService.collectCategoryInfo()
 }
 
-// VCPU: 0.25 / MEMORY: 512
-async function checkIPAddress() {
-  const response = await fetch('http://api.ipify.org/?format=json')
-  const body = await response.json()
-  console.log(body.ip);
-}
-
-// VCPU: 0.25 / MEMORY: 512
-async function getCarAmount() {
-  const cars = await dynamoCarClient.queryCars()
-  console.log(cars);
-  console.log(cars.length);
-}
-
-// VCPU: 0.25 / MEMORY: 512
-async function getUploadedCarAmount() {
-  const uploadedCars = await dynamoUploadedCarClient.queryAll()
-  console.log(uploadedCars);
-  console.log(uploadedCars.length);
-}
 
 const functionMap = new Map<string, Function>([
   [collectDrafts.name, collectDrafts],  // 1
@@ -146,12 +171,13 @@ const functionMap = new Map<string, Function>([
   [collectDetails.name, collectDetails],  // 2
   [manageCars.name, manageCars],  // 3
   [syncCars.name, syncCars],  // 4
-  [uploadCar.name, uploadCar],  // 5
+  [uploadCars.name, uploadCars],  // 5
 
+  [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],
+  [resetUploadedCarAsFalse.name, resetUploadedCarAsFalse],
+  [removeAllInvalidImageUploadedCars.name, removeAllInvalidImageUploadedCars],
+  [removeInvalidImageUploadedCars.name, removeInvalidImageUploadedCars],
   [collectCategory.name, collectCategory],
-  [checkIPAddress.name, checkIPAddress],
-  [getCarAmount.name, getCarAmount],
-  [getUploadedCarAmount.name, getUploadedCarAmount],
 ])
 
 const fc = functionMap.get(process.argv[2])

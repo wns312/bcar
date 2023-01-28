@@ -117,15 +117,18 @@ export class DynamoBaseClient {
     return responses
   }
 
-  batchDeleteItems(tableName: string, ...deleteRequestInputs: DeleteRequest[]) {
+  async batchDeleteItems(tableName: string, ...deleteRequestInputs: DeleteRequest[]) {
     const input = deleteRequestInputs.map(input=>({ DeleteRequest: input }))
-    const responses = chunk(input, 25).map(putRequests => {
-      return this.batchWriteItem({
+    const chunks = chunk(input, 25)
+    let responses: BatchWriteItemCommandOutput[] = []
+    for (const deleteRequests of chunks) {
+      const response = await this.batchWriteItem({
         RequestItems: {
-          [tableName]: putRequests
+          [tableName]: deleteRequests
         }
       })
-    })
-    return Promise.all(responses)
+      responses.push(response)
+    }
+    return responses
   }
 }
