@@ -5,19 +5,24 @@ import { ResponseError } from "../../errors"
 import { Account, RegionUrl } from "../../entities"
 
 export class SheetClient {
+  static spreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
+
   static accountSheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
-  static accountSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
   static accountRangeStart = "A3"
   static accountRangeEnd = "F"
 
   static regionSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
-  static regionSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
   static regionRangeStart = "A3"
   static regionRangeEnd = "B"
+
+  static commentSheetName = envs.GOOGLE_COMMENT_SHEET_NAME
+  static marginSheetName = envs.GOOGLE_MARGIN_SHEET_NAME
 
   sheets: sheets_v4.Sheets
   accounts: Account[] = []
   regionUrls: RegionUrl[] = []
+  margin: number = -1
+  comment: string = ""
 
   constructor(email: string, key: string) {
     const auth = new google.auth.JWT(email, undefined, key, ["https://www.googleapis.com/auth/spreadsheets"])
@@ -38,12 +43,56 @@ export class SheetClient {
     return `${sheetName}!${rangeStart}:${rangeEnd}`
   }
 
+  get marginRange() {
+    return `${SheetClient.marginSheetName}!A1:A1`
+  }
+
+  get commentRange() {
+    return `${SheetClient.commentSheetName}!A1:A1`
+  }
+
+  async getMargin() {
+    if (this.margin !== -1) {
+      return this.margin
+    }
+    const response = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: SheetClient.spreadsheetId,
+      range: this.marginRange,
+    });
+    if (response.status != 200) {
+      console.error(response);
+      throw new ResponseError(response.statusText)
+    }
+
+    const values = response.data.values as string[][]
+    const value = values[0][0]
+    this.margin = parseInt(value)
+    return this.margin
+  }
+
+  async getComment() {
+    if (this.comment.length) {
+      return this.comment
+    }
+    const response = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: SheetClient.spreadsheetId,
+      range: this.commentRange,
+    });
+    if (response.status != 200) {
+      console.error(response);
+      throw new ResponseError(response.statusText)
+    }
+    const values = response.data.values as string[][]
+    const value = values[0][0]
+    return value
+  }
+
   async getAccounts() {
     if (this.accounts.length) {
       return this.accounts
     }
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: SheetClient.accountSpreadsheetId,
+      spreadsheetId: SheetClient.spreadsheetId,
       range: this.accountRange,
     });
     if (response.status != 200) {
@@ -72,7 +121,7 @@ export class SheetClient {
       return this.regionUrls
     }
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: SheetClient.regionSpreadsheetId,
+      spreadsheetId: SheetClient.spreadsheetId,
       range: this.regionUrlRange,
     });
     if (response.status != 200) {

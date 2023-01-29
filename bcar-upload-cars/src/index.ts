@@ -6,7 +6,6 @@ import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
 import { AccountResetService, CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarRemoveService, UploadedCarSyncService } from "./services"
 import { CategoryInitializer } from "./utils"
-import { Account } from "./entities"
 
 const {
   BCAR_CATEGORY_INDEX,
@@ -94,10 +93,11 @@ async function manageCars() {
 
 // VCPU: 2.0 / MEMORY: 4096
 async function syncCars() {
-  await uploadedCarSyncService.syncCarsByEnv()
-
   const kcrId = process.env.KCR_ID
-  if (!kcrId) throw new Error("No id env")
+  if (!kcrId) {
+    throw new Error("No id env");
+  }
+  await uploadedCarSyncService.syncCarsById(kcrId)
 
   const response = await batchClient.submitJob({
     jobName: `${uploadCars.name}-${kcrId}`,
@@ -117,9 +117,9 @@ async function uploadCars() {
     throw new Error("No id env");
   }
   await carUploadService.uploadCarById(kcrId)
-  await uploadedCarSyncService.syncCarsByEnv()
+  await uploadedCarSyncService.syncCarsById(kcrId)
 
-  const carNumbers = await dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(kcrId, false)
+  const carNumbers = await dynamoUploadedCarClient.queryCarNumbersById(kcrId)
   if (carNumbers.length) {
     throw new Error("There is more cars to be uploaded. throw error for retry.")
   }
@@ -164,6 +164,16 @@ async function collectCategory() {
   await categoryService.collectCategoryInfo()
 }
 
+async function test() {
+  const [margin, comment] = await Promise.all([
+    sheetClient.getMargin(),
+    sheetClient.getComment(),
+  ])
+  console.log(margin)
+  console.log(comment)
+
+}
+
 
 const functionMap = new Map<string, Function>([
   [collectDrafts.name, collectDrafts],  // 1
@@ -178,6 +188,7 @@ const functionMap = new Map<string, Function>([
   [removeAllInvalidImageUploadedCars.name, removeAllInvalidImageUploadedCars],
   [removeInvalidImageUploadedCars.name, removeInvalidImageUploadedCars],
   [collectCategory.name, collectCategory],
+  [test.name, test],
 ])
 
 const fc = functionMap.get(process.argv[2])

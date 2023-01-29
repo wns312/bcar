@@ -9,15 +9,6 @@ export class UploadedCarSyncService {
     private sheetClient: SheetClient,
   ) {}
 
-  async syncCarsByEnv() {
-    const kcrId = process.env.KCR_ID
-    if (!kcrId) {
-      throw new Error("No id env");
-    }
-    await this.syncCarsById(kcrId)
-  }
-
-
   async syncCarsById(id: string) {
     const [cars, { account, regionUrl }] = await Promise.all([
       this.dynamoUploadedCarClient.queryById(id),
@@ -36,15 +27,22 @@ export class UploadedCarSyncService {
     console.log(carNumbers)
 
     const synchronizer = new CarSynchronizer(page, manageUrl, carNumbers)
+    // 이게 남아있는 차량이므로, 이 차량들을 제외한 나머지 차량들은 false로 저장해주어야 한다.
     const existingCarNums = await synchronizer.sync()
-    console.log("existingCarNums", existingCarNums);
+    console.log("existingCarNums", existingCarNums)
+
+    const nonExistingCarNumbers = cars.filter(car=>!existingCarNums.includes(car.carNumber)).map(car=>car.carNumber)
+    console.log("nonExistingCarNums", nonExistingCarNumbers)
 
     await delay(1000)
-    await PageInitializer.deactivateEvents(page)
-    await PageInitializer.closePage(page)
 
     if (existingCarNums.length) {
       await this.dynamoUploadedCarClient.batchSaveByCarNumbers(id, existingCarNums, true)
     }
+    if (nonExistingCarNumbers.length) {
+      await this.dynamoUploadedCarClient.batchSaveByCarNumbers(id, nonExistingCarNumbers, false)
+    }
+    await PageInitializer.deactivateEvents(page)
+    await PageInitializer.closePage(page)
   }
 }

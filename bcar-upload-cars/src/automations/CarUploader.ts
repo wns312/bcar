@@ -65,6 +65,11 @@ export class CarUploaderSelector {
   // static hasSeizureNullSelector = CarUploaderSelector.seizureMortgageBase + ":nth-child(1) > td > label:nth-child(3)"
   // static hasMortgageNullSelector = CarUploaderSelector.seizureMortgageBase + ":nth-child(2) > td > label:nth-child(3)"
 
+  // description
+  static descriptionSelector = "#post-form > div.description > textarea"
+  // presentationNumber
+  static presentationNumberSelector = "#post-form > table:nth-child(10) > tbody > tr:nth-child(17) > td > input"
+
   // color
   static colorSelectSelector = "#carColorItem_title"
   static colorItemSelectSelector = "#carColorItem_child > ul"
@@ -268,8 +273,10 @@ export class CarUploader {
   constructor(
     private page: Page,
     private id: string,
+    private comment: string,
+    private margin: number,
     private registerUrl: string,
-    private sources: UploadSource[]
+    private sources: UploadSource[],
     ) {}
 
   static getImageRootDir(id: string) {
@@ -369,8 +376,15 @@ export class CarUploader {
       await carColorInput!.type("-")
     }
 
+    // 차량 설명
+    const description = await this.page.waitForSelector(CarUploaderSelector.descriptionSelector)
+    await description!.type(this.comment)
+
+    // 제시번호
+    const presentationNumber = await this.page.waitForSelector(CarUploaderSelector.presentationNumberSelector)
+    await presentationNumber!.type(car.presentationNumber)
+
     // carNumber: 차량번호 / mileage: 주행거리 / displacement: 배기량 / price: 가격
-    const additionalPrice = 40
     const evaluateInputList = [
       {
         selector: CarUploaderSelector.carNumberInputSelector,
@@ -386,7 +400,7 @@ export class CarUploader {
       },
       {
         selector: CarUploaderSelector.priceInputSelector,
-        value: (car.price + additionalPrice).toString(),
+        value: (car.price + this.margin).toString(),
       }
     ]
 

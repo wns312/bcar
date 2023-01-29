@@ -45,11 +45,13 @@ export class CarSynchronizer {
     })
 
     const synchedCarNums = await Promise.all(synchedCarNumsPromise)
+    // 삭제될 것
     const checkedCarNums = synchedCarNums.filter(obj=> obj.isDeleted).map(obj=>obj.carNum)
-    const existingCarNums = synchedCarNums.filter(obj=> !obj.isDeleted).map(obj=>obj.carNum)
+    // 남아있을 것
+    const unCheckedCarNums = synchedCarNums.filter(obj=> !obj.isDeleted).map(obj=>obj.carNum)
 
     // 삭제할 차량이 있는 경우에만 click해야한다.
-    if (!checkedCarNums.length) return existingCarNums
+    if (!checkedCarNums.length) return unCheckedCarNums
 
     const deleteButton = await this.page.$(deleteButtonSelector)
     if (!deleteButton) throw new Error("No deleteButton")
@@ -65,7 +67,7 @@ export class CarSynchronizer {
 
     await this.page.waitForNavigation({ waitUntil: "networkidle2"})
 
-    return existingCarNums
+    return unCheckedCarNums
   }
 
   async sync() {
