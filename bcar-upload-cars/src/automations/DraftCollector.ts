@@ -101,7 +101,7 @@ export class DraftCollector {
       console.log(endTime - startTime);
       return draftCars
     } catch (error) {
-      console.error("Crawl list failed");
+      console.error("Crawl list failed")
       throw error
     } finally {
       await page.browser().close()
@@ -116,7 +116,7 @@ export class DraftCollector {
       const draftCars = await this.collect(page, endPage)
       return draftCars
     } catch (error) {
-      console.error("Crawl list failed");
+      console.error("Crawl list failed")
       throw error
     } finally {
       await page.browser().close()

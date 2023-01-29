@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from "fs/promises"
 import { Page } from "puppeteer"
+import * as Sentry from "@sentry/node"
 import { CarUploader } from "../automations"
 import { SheetClient, DynamoCarClient, DynamoUploadedCarClient } from "../db"
 import { Account, RegionUrl } from "../entities"
@@ -80,12 +81,11 @@ export class CarUploadService {
       )
       await Promise.all(uploadResults)
     } catch(e) {
-      console.error("Catch error in uploadedCarById.")
       console.error(e)
+      Sentry.captureException(e)
     } finally {
       await PageInitializer.closePages(pages)
       await rm(rootDir, { recursive: true, force: true })
     }
-
   }
 }

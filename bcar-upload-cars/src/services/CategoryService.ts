@@ -1,5 +1,7 @@
+import { ProtocolError, TimeoutError } from "puppeteer"
 import { CategoryCollector } from "../automations"
 import { SheetClient, DynamoCategoryClient } from "../db"
+import { Account, RegionUrl } from "../entities"
 
 export class CategoryService {
   constructor(
@@ -7,12 +9,25 @@ export class CategoryService {
     private categoryCollector: CategoryCollector,
     private dynamoCategoryClient: DynamoCategoryClient,
   ) {}
-
+  async collect(account: Account, regionUrl: RegionUrl) {
+    try {
+      await this.categoryCollector.execute(account.id, account.pw, regionUrl.loginUrl, regionUrl.registerUrl)
+    } catch (error) {
+      console.error(error)
+      if ( error instanceof ProtocolError || error instanceof TimeoutError) {
+        return false
+      }
+      throw error
+    }
+    return true
+  }
 
   async collectCategoryInfo() {
     const { account, regionUrl } = await this.sheetClient.getTestAccountAndRegionUrl()
-    await this.categoryCollector.execute(account.id, account.pw, regionUrl.loginUrl, regionUrl.registerUrl)
-
+    const result = await this.collect(account, regionUrl)
+    if (!result) {
+      return
+    }
     const carManufacturerMap = this.categoryCollector.carManufacturerMap
     const carSegmentMap = this.categoryCollector.carSegmentMap
 
