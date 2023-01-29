@@ -15,7 +15,8 @@ const {
   GOOGLE_CLIENT_EMAIL,
   GOOGLE_PRIVATE_KEY,
   JOB_DEFINITION_NAME,
-  JOB_QUEUE_NAME,
+  SYNC_JOB_QUEUE_NAME,
+  UPLOAD_JOB_QUEUE_NAME,
   REGION,
   SOURCE_ADMIN_ID,
   SOURCE_ADMIN_PW,
@@ -39,7 +40,7 @@ const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
 // Category Map Creator
 const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
 // Batch Trigger
-const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, JOB_QUEUE_NAME)
+const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, SYNC_JOB_QUEUE_NAME)
 
 // Services
 const carCollectService = new CarCollectService(draftCollector, detailCollector, dynamoCarClient)
