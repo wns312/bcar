@@ -28,16 +28,21 @@ export class UploadedCarSyncService {
 
     const synchronizer = new CarSynchronizer(page, manageUrl, carNumbers)
     // 이게 남아있는 차량이므로, 이 차량들을 제외한 나머지 차량들은 false로 저장해주어야 한다.
-    const existingCarNums = await synchronizer.sync()
-    console.log("existingCarNums", existingCarNums)
+    const existingCarNumbers = await synchronizer.sync()
+    existingCarNumbers.forEach(num=> {
+      if (existingCarNumbers.indexOf(num) !== existingCarNumbers.lastIndexOf(num)) {
+        console.log("Duplicated car register: ", num)
+      }
+    })
 
-    const nonExistingCarNumbers = cars.filter(car=>!existingCarNums.includes(car.carNumber)).map(car=>car.carNumber)
-    console.log("nonExistingCarNums", nonExistingCarNumbers)
+    const nonExistingCarNumbers = cars.filter(car=>!existingCarNumbers.includes(car.carNumber)).map(car=>car.carNumber)
+    console.log("existingCarNumbers", existingCarNumbers.length)
+    console.log("nonExistingCarNumbers", nonExistingCarNumbers.length)
 
     await delay(1000)
 
-    if (existingCarNums.length) {
-      await this.dynamoUploadedCarClient.batchSaveByCarNumbers(id, existingCarNums, true)
+    if (existingCarNumbers.length) {
+      await this.dynamoUploadedCarClient.batchSaveByCarNumbers(id, existingCarNumbers, true)
     }
     if (nonExistingCarNumbers.length) {
       await this.dynamoUploadedCarClient.batchSaveByCarNumbers(id, nonExistingCarNumbers, false)

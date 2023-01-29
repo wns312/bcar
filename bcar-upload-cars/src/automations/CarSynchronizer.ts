@@ -34,6 +34,7 @@ export class CarSynchronizer {
       if(!carNum) throw new Error(`No car number : ${carNum}`)
 
       const isCarExist = this.existingCars.includes(carNum)
+
       if (isCarExist) {
         return { carNum, isDeleted: false }  // 여기선 isDeleted: false를 리턴
       }

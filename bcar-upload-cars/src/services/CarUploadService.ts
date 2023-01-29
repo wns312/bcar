@@ -80,11 +80,12 @@ export class CarUploadService {
       )
       await Promise.all(uploadResults)
     } catch(e) {
+      console.error("Catch error in uploadedCarById.")
+      console.error(e)
+    } finally {
       await PageInitializer.closePages(pages)
       await rm(rootDir, { recursive: true, force: true })
-      throw e
     }
-    await PageInitializer.closePages(pages)
-    await rm(rootDir, { recursive: true, force: true })
+
   }
 }
