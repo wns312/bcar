@@ -31,12 +31,11 @@ export class CarSynchronizer {
       if (!photoTag) throw new Error("No photoTag tag")
 
       const carNum = await photoTag.evaluate(el => el.textContent)
-      console.log(carNum);
-      if(!carNum) throw new Error("No car number")
+      if(!carNum) throw new Error(`No car number : ${carNum}`)
 
       const isCarExist = this.existingCars.includes(carNum)
+
       if (isCarExist) {
-        console.log(`${carNum} exists. continue ...`);
         return { carNum, isDeleted: false }  // 여기선 isDeleted: false를 리턴
       }
 
@@ -47,11 +46,13 @@ export class CarSynchronizer {
     })
 
     const synchedCarNums = await Promise.all(synchedCarNumsPromise)
+    // 삭제될 것
     const checkedCarNums = synchedCarNums.filter(obj=> obj.isDeleted).map(obj=>obj.carNum)
-    const existingCarNums = synchedCarNums.filter(obj=> !obj.isDeleted).map(obj=>obj.carNum)
+    // 남아있을 것
+    const unCheckedCarNums = synchedCarNums.filter(obj=> !obj.isDeleted).map(obj=>obj.carNum)
 
     // 삭제할 차량이 있는 경우에만 click해야한다.
-    if (!checkedCarNums.length) return existingCarNums
+    if (!checkedCarNums.length) return unCheckedCarNums
 
     const deleteButton = await this.page.$(deleteButtonSelector)
     if (!deleteButton) throw new Error("No deleteButton")
@@ -65,18 +66,20 @@ export class CarSynchronizer {
       aButton!.dispatchEvent(new Event('click', { bubbles: true }));
     }, deleteConfirmButtonSelector)
 
-    return existingCarNums
+    await this.page.waitForNavigation({ waitUntil: "networkidle2"})
+
+    return unCheckedCarNums
   }
 
   async sync() {
     let pageNumber = await this.getPageLength()
     let existingCarNums: string[] = []
-    console.log(pageNumber);
 
     while (pageNumber) {
+      console.log(`Page: ${pageNumber}`)
       const lastPageUrl = this.manageUrl + `?page=${pageNumber}`
       await this.page.goto(lastPageUrl, { waitUntil: "networkidle2"})
-      await delay(100)
+      await this.page.waitForSelector("#_carManagement > table")
       const existingCarNumsInPage = await this.deleteExpiredCars()
       existingCarNums = [...existingCarNums, ...existingCarNumsInPage]
       pageNumber -= 1

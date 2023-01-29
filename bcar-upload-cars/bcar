@@ -12,14 +12,10 @@ case $COMMAND in
     fi
 
     tsc
-
-    docker buildx build -f Dockerfile.amd64 --platform=linux/amd64 -t bcar-deploy-img .   # build for deploy
-
+    docker buildx build --platform=linux/amd64 -t bcar-deploy-img .   # build for deploy
     DOCKER_IMAGE_ID=$(docker images -q bcar-deploy-img)
     DOCKER_IMAGE_TAG=${PRIVATE_REGISTRY_BASE_URL}/${PRIVATE_REGISTRY_PATH}:${TAG_NAME} # create additional envs
-
     aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${PRIVATE_REGISTRY_BASE_URL}  # ecr login
-
     docker tag ${DOCKER_IMAGE_ID} ${DOCKER_IMAGE_TAG} && docker push ${DOCKER_IMAGE_TAG}  # docker tag assign & docker image push
     ;;
   export:env)

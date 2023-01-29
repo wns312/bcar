@@ -2,26 +2,33 @@
 import { google, sheets_v4 } from "googleapis"
 import { envs } from "../../configs"
 import { ResponseError } from "../../errors"
-import { Account, KCRURL } from "../../types"
+import { Account, RegionUrl } from "../../entities"
 
 export class SheetClient {
+  static spreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
+
   static accountSheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
-  static accountSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
   static accountRangeStart = "A3"
   static accountRangeEnd = "F"
 
-  static kcrSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
-  static kcrSpreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
-  static kcrRangeStart = "A3"
-  static kcrRangeEnd = "D"
+  static regionSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
+  static regionRangeStart = "A3"
+  static regionRangeEnd = "B"
+
+  static commentSheetName = envs.GOOGLE_COMMENT_SHEET_NAME
+  static marginSheetName = envs.GOOGLE_MARGIN_SHEET_NAME
+
   sheets: sheets_v4.Sheets
+  accounts: Account[] = []
+  regionUrls: RegionUrl[] = []
+  margin: number = -1
+  comment: string = ""
 
   constructor(email: string, key: string) {
     const auth = new google.auth.JWT(email, undefined, key, ["https://www.googleapis.com/auth/spreadsheets"])
     this.sheets = google.sheets({ version: "v4", auth })
   }
 
-  // Account
   get accountRange() {
     const sheetName = SheetClient.accountSheetName
     const rangeStart = SheetClient.accountRangeStart
@@ -29,21 +36,63 @@ export class SheetClient {
     return `${sheetName}!${rangeStart}:${rangeEnd}`
   }
 
-  private convertAccounts(rawList: string[][]): Account[] {
-    return rawList?.map(([id, pw, region, isTest, isError, logUrl, error]) => ({
-      id,
-      pw,
-      region,
-      isTestAccount: isTest == "TRUE" ? true : false,
-      isErrorOccured: isError == "TRUE" ? true : false,
-      logStreamUrl: isError ? logUrl : null,
-      errorContent: isError ? error : null,
-    }))
+  get regionUrlRange() {
+    const sheetName = SheetClient.regionSheetName
+    const rangeStart = SheetClient.regionRangeStart
+    const rangeEnd = SheetClient.regionRangeEnd
+    return `${sheetName}!${rangeStart}:${rangeEnd}`
+  }
+
+  get marginRange() {
+    return `${SheetClient.marginSheetName}!A1:A1`
+  }
+
+  get commentRange() {
+    return `${SheetClient.commentSheetName}!A1:A1`
+  }
+
+  async getMargin() {
+    if (this.margin !== -1) {
+      return this.margin
+    }
+    const response = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: SheetClient.spreadsheetId,
+      range: this.marginRange,
+    });
+    if (response.status != 200) {
+      console.error(response);
+      throw new ResponseError(response.statusText)
+    }
+
+    const values = response.data.values as string[][]
+    const value = values[0][0]
+    this.margin = parseInt(value)
+    return this.margin
+  }
+
+  async getComment() {
+    if (this.comment.length) {
+      return this.comment
+    }
+    const response = await this.sheets.spreadsheets.values.get({
+      spreadsheetId: SheetClient.spreadsheetId,
+      range: this.commentRange,
+    });
+    if (response.status != 200) {
+      console.error(response);
+      throw new ResponseError(response.statusText)
+    }
+    const values = response.data.values as string[][]
+    const value = values[0][0]
+    return value
   }
 
   async getAccounts() {
+    if (this.accounts.length) {
+      return this.accounts
+    }
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: SheetClient.accountSpreadsheetId,
+      spreadsheetId: SheetClient.spreadsheetId,
       range: this.accountRange,
     });
     if (response.status != 200) {
@@ -52,46 +101,28 @@ export class SheetClient {
     }
     const values = response.data.values as string[][]
     const accountRawList = values?.splice(1)
-    return this.convertAccounts(accountRawList)
+    this.accounts = accountRawList.map(
+      ([index, id, pw, region, isTestAccount, isErrorOccured, logStreamUrl, errorContent]) => new Account({
+        index: parseInt(index),
+        id,
+        pw,
+        region,
+        isTestAccount: isTestAccount == "TRUE" ? true : false,
+        isErrorOccured: isErrorOccured == "TRUE" ? true : false,
+        logStreamUrl: logStreamUrl,
+        errorContent: errorContent,
+      })
+    )
+    return this.accounts
   }
 
-  async appendAccount(id: string, pw: string, isTestAccount: boolean) {
-    const response = await this.sheets.spreadsheets.values.append({
-      spreadsheetId: SheetClient.accountSpreadsheetId,
-      range: SheetClient.accountSheetName,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [ [id, pw, isTestAccount, false] ]
-      }
-    })
-    if (response.status != 200) {
-      console.error(response);
-      throw new ResponseError(response.statusText)
+  async getRegionUrls() {
+    if (this.accounts.length) {
+      return this.regionUrls
     }
-    return response.data
-  }
-
-  // KCR
-  get kcrRange() {
-    const sheetName = SheetClient.kcrSheetName
-    const rangeStart = SheetClient.kcrRangeStart
-    const rangeEnd = SheetClient.kcrRangeEnd
-    return `${sheetName}!${rangeStart}:${rangeEnd}`
-  }
-
-  private convertKcrs(rawList: string[][]): KCRURL[] {
-    return rawList?.map(([region, loginUrl, registerUrl, manageUrl]) =>({
-      region,
-      loginUrl,
-      registerUrl,
-      manageUrl,
-    }))
-  }
-
-  async getKcrs() {
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: SheetClient.kcrSpreadsheetId,
-      range: this.kcrRange,
+      spreadsheetId: SheetClient.spreadsheetId,
+      range: this.regionUrlRange,
     });
     if (response.status != 200) {
       console.error(response);
@@ -99,6 +130,71 @@ export class SheetClient {
     }
     const values = response.data.values as string[][]
     const rawList = values?.splice(1)
-    return this.convertKcrs(rawList)
+    this.regionUrls = rawList.map(([region, baseUrl]) =>new RegionUrl({
+      region,
+      baseUrl
+    }))
+    return this.regionUrls
+  }
+
+  async getAccountIdMap() {
+    const accounts = await this.getAccounts()
+    return new Map<string, Account>(accounts.map(account=>[account.id, account]))
+  }
+
+  async getAccountIndexMap() {
+    const accounts = await this.getAccounts()
+    return new Map<number, Account>(accounts.map(account=>[account.index, account]))
+  }
+
+  async getRegionUrlMap() {
+    const regionsUrls = await this.getRegionUrls()
+    return new Map<string, RegionUrl>(regionsUrls.map(regionsUrl=>[regionsUrl.region, regionsUrl]))
+  }
+
+  async getAccountAndRegionUrl(id: string) {
+    const [accountMap, regionUrlMap] = await Promise.all([
+      this.getAccountIdMap(),
+      this.getRegionUrlMap(),
+    ])
+    const account = accountMap.get(id)
+    if (!account) {
+      throw new Error("Cannot find account");
+    }
+    const regionUrl = regionUrlMap.get(account.region)
+    if (!regionUrl) {
+      throw new Error("Cannot find regionUrl");
+    }
+    return { account, regionUrl }
+  }
+
+  async getTestAccountAndRegionUrl() {
+    const [accounts, regionUrlMap] = await Promise.all([
+      this.getAccounts(),
+      this.getRegionUrlMap(),
+    ])
+    const testAccounts = accounts.filter(account=>account.isTestAccount)
+    if (!testAccounts.length) {
+      throw new Error("Cannot find account")
+    }
+    const account = testAccounts[0]
+    const regionUrl = regionUrlMap.get(account.region)
+    if (!regionUrl) {
+      throw new Error("Cannot find regionUrl")
+    }
+    return { account, regionUrl }
+  }
+
+  async getNextAccount(id: string) {
+    const [idMap, indexMap] = await Promise.all([
+      this.getAccountIdMap(),
+      this.getAccountIndexMap()
+    ])
+
+    const currentAccount = idMap.get(id)
+    if (!currentAccount) {
+      throw new Error(`CurrentAccount does not exist :${id}`)
+    }
+    return indexMap.get(currentAccount.index + 1)
   }
 }

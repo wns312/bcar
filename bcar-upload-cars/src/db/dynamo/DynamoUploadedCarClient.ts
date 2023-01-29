@@ -1,12 +1,13 @@
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { DynamoBaseClient } from "./DynamoBaseClient"
+import { UploadedCar } from "../../entities"
 
 export class DynamoUploadedCarClient {
   baseClient: DynamoBaseClient;
   tableName: string;
   indexName: string;
 
-  static userPrefix = "#USER-"
+  static userPk = "#USER"
   static carPrefix = "#CAR-"
 
   constructor(region: string, tableName: string, indexName: string) {
@@ -15,61 +16,125 @@ export class DynamoUploadedCarClient {
     this.indexName = indexName;
   }
 
-  private async scan(PK: string, SK: string) {
-    const result = await this.baseClient.scanItems({
+  convertUploadedCars(records: Record<string, AttributeValue>[]) {
+    return records.map(record=>new UploadedCar({
+      accountId: record.accountId.S!,
+      carNumber: record.carNumber.S!,
+      isUploaded: record.isUploaded.BOOL!,
+    }))
+  }
+
+  async queryAll() {
+    const records = await this.baseClient.queryItems({
       TableName: this.tableName,
-      FilterExpression: `begins_with(PK, :p) and begins_with(SK, :s)`,
+      KeyConditionExpression: "PK = :p",
       ExpressionAttributeValues: {
-        ":p": { S: PK },
-        ":s": { S: SK },
-      }
+        ":p": { S: DynamoUploadedCarClient.userPk },
+      },
     })
-    return result.Items!
+    return this.convertUploadedCars(records)
   }
 
-  private async segmentScan(PK: string, SK: string, segmentSize: number) {
-    const resultsListPromise = []
-    for (let i = 0; i < segmentSize; i++) {
-      const results = this.baseClient.segmentScan({
-        TableName: this.tableName,
-        FilterExpression: "begins_with(SK, :s) and begins_with(PK, :p)",
-        ExpressionAttributeValues: {
-          ":p": { S: PK },
-          ":s": { S: SK },
-        },
-        Segment: i,
-        TotalSegments: segmentSize,
-      })
-      resultsListPromise.push(results)
-    }
-    const resultsList = await Promise.all(resultsListPromise)
-    return resultsList.flat()
+  async queryById(id: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "accountId = :i",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPk },
+        ":i": { S: id },
+      },
+    })
+    return this.convertUploadedCars(records)
   }
 
-
-  async scanUploadedCar() {
-    return this.scan(DynamoUploadedCarClient.userPrefix, DynamoUploadedCarClient.carPrefix)
+  async queryByIdAndIsUploaded(accountId: string, isUploaded: boolean) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "accountId = :i AND isUploaded = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPk },
+        ":i": { S: accountId },
+        ":u": { BOOL: isUploaded }
+      },
+    })
+    return this.convertUploadedCars(records)
   }
 
-  async segmentScanUploadedCar(segmentSize: number) {
-    return this.segmentScan(
-      DynamoUploadedCarClient.userPrefix,
-      DynamoUploadedCarClient.carPrefix,
-      segmentSize
-    )
+  async queryCarNumbersById(accountId: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "accountId = :i",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPk },
+        ":i": { S: accountId },
+      },
+      ProjectionExpression: "carNumber"
+    })
+
+    return records.map(record=>record.carNumber.S!)
+  }
+  async queryCarNumbersByIdAndIsUploaded(accountId: string, isUploaded: boolean) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "accountId = :i AND isUploaded = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoUploadedCarClient.userPk },
+        ":i": { S: accountId },
+        ":u": { BOOL: isUploaded }
+      },
+      ProjectionExpression: "carNumber"
+    })
+
+    return records.map(record=>record.carNumber.S!)
   }
 
-  batchSave(id: string, carNums: string[], isUploaded: boolean) {
-    const now = Date.now()
+  batchSave(cars: UploadedCar[]) {
+    const putItems = cars.map( car =>({
+      Item: {
+        PK: { S: DynamoUploadedCarClient.userPk },
+        SK: { S: DynamoUploadedCarClient.carPrefix + car.carNumber },
+        accountId: { S: car.accountId },
+        carNumber: { S: car.carNumber },
+        isUploaded: { BOOL: car.isUploaded },
+      }
+    }))
+    return this.baseClient.batchPutItems(this.tableName, ...putItems)
+  }
+  batchSaveByCarNumbers(accountId: string, carNums: string[], isUploaded: boolean) {
     const putItems = carNums.map( carNumber =>({
       Item: {
-        PK: { S: DynamoUploadedCarClient.userPrefix + id },
+        PK: { S: DynamoUploadedCarClient.userPk },
         SK: { S: DynamoUploadedCarClient.carPrefix + carNumber },
-        registeredAt: { N: now.toString() },
+        accountId: { S: accountId },
+        carNumber: { S: carNumber },
         isUploaded: { BOOL: isUploaded },
       }
     }))
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
+  }
+
+  batchDelete(cars: UploadedCar[]) {
+    const deleteRequestInput = cars.map(car => ({
+      Key: {
+        PK: { S: DynamoUploadedCarClient.userPk },
+        SK: { S: DynamoUploadedCarClient.carPrefix + car.carNumber },
+      }
+    }))
+    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
+  }
+
+  batchDeleteCarsByCarNumbers(carNums: string[]) {
+    const deleteRequestInput = carNums.map(carNumber => ({
+      Key: {
+        PK: { S: DynamoUploadedCarClient.userPk },
+        SK: { S: DynamoUploadedCarClient.carPrefix + carNumber },
+      }
+    }))
+    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 
   rawBatchDelete(items: Record<string, AttributeValue>[]) {
@@ -77,39 +142,6 @@ export class DynamoUploadedCarClient {
       Key: { PK: item.PK, SK: item.SK }
     }))
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
-  }
-
-  batchDelete(id: string, carNums: string[]) {
-    const deleteRequestInput = carNums.map(carNumber => ({
-      Key: {
-        PK: { S: DynamoUploadedCarClient.userPrefix + id },
-        SK: { S: DynamoUploadedCarClient.carPrefix + carNumber },
-      }
-    }))
-    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
-  }
-
-  // 여기서 옵션으로 isUploaded = false인 애들만 가져오는 것을 추가해야한다.
-  queryById(id: string) {
-    return this.baseClient.queryItems({
-      TableName: this.tableName,
-      KeyConditionExpression: "PK = :p",
-      ExpressionAttributeValues: {
-        ":p": { S: DynamoUploadedCarClient.userPrefix + id },
-      },
-    })
-  }
-
-  queryByIdFilteredByIsUploaded(id: string, isUploaded: boolean) {
-    return this.baseClient.queryItems({
-      TableName: this.tableName,
-      KeyConditionExpression: "PK = :p",
-      FilterExpression: "isUploaded = :u",
-      ExpressionAttributeValues: {
-        ":p": { S: DynamoUploadedCarClient.userPrefix + id },
-        ":u": { BOOL: isUploaded }
-      },
-    })
   }
 }
 

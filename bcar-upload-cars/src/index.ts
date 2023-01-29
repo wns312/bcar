@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
-import { BrowserInitializer, CategoryCrawler } from "./automations"
+import { AccountResetter, CategoryCollector, DetailCollector, DraftCollector, InvalidCarRemover } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
-import { CarAssignService, CarUploadService, CategoryService, UploadedCarSyncService } from "./services"
+import { AccountResetService, CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarRemoveService, UploadedCarSyncService } from "./services"
 import { CategoryInitializer } from "./utils"
 
 const {
@@ -15,108 +15,167 @@ const {
   GOOGLE_CLIENT_EMAIL,
   GOOGLE_PRIVATE_KEY,
   JOB_DEFINITION_NAME,
-  JOB_QUEUE_NAME,
-  NODE_ENV,
+  SYNC_JOB_QUEUE_NAME,
+  UPLOAD_JOB_QUEUE_NAME,
   REGION,
+  SOURCE_ADMIN_ID,
+  SOURCE_ADMIN_PW,
+  SOURCE_LOGIN_PAGE,
+  SOURCE_MANAGE_PAGE,
+  SOURCE_SEARCH_BASE,
 } = envs
 
-const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, JOB_QUEUE_NAME)
-const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
+// Collectors
+const draftCollector = new DraftCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE, SOURCE_MANAGE_PAGE, SOURCE_SEARCH_BASE)
+const detailCollector = new DetailCollector()
+const categoryCollector = new CategoryCollector()
+const accountResetter = new AccountResetter()
+const invalidCarRemover = new InvalidCarRemover()
+// Repositories
 const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
 const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
 const dynamoUploadedCarClient = new DynamoUploadedCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
-const initializer = new BrowserInitializer(NODE_ENV)
+// SpreadSheet Client
+const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
+// Category Map Creator
 const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
-const crawler = new CategoryCrawler(initializer)
+// Batch Trigger
+const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, SYNC_JOB_QUEUE_NAME, UPLOAD_JOB_QUEUE_NAME)
 
+// Services
+const carCollectService = new CarCollectService(draftCollector, detailCollector, dynamoCarClient)
+const carAssignService = new CarAssignService(sheetClient, dynamoCarClient, dynamoUploadedCarClient, categoryInitializer)
+const uploadedCarSyncService = new UploadedCarSyncService(dynamoUploadedCarClient, sheetClient)
+const carUploadService = new CarUploadService(sheetClient, dynamoCarClient, dynamoUploadedCarClient, categoryInitializer)
+const categoryService = new CategoryService(sheetClient, categoryCollector, dynamoCategoryClient)
+const accountResetService = new AccountResetService(sheetClient, dynamoUploadedCarClient, accountResetter)
+const uploadedCarRemoveService = new UploadedCarRemoveService(sheetClient, dynamoUploadedCarClient, invalidCarRemover)
+
+// VCPU: 1.0 / MEMORY: 2048
+async function collectDrafts() {
+  await carCollectService.collectDrafts()
+  await triggerCollectingDetails()
+}
+
+// VCPU: 0.25 / MEMORY: 512
+async function triggerCollectingDetails() {
+  const response = await batchClient.submitSyncJob({
+    jobName: collectDetails.name,
+    command: ["node", "/app/dist/src/index.js", collectDetails.name],
+    timeout: 60 * 30,
+  })
+  if (response.$metadata.httpStatusCode !== 200) {
+    console.error(response)
+  }
+}
+
+// VCPU: 2.0 / MEMORY: 4096
+async function collectDetails() {
+  await carCollectService.collectDetails()
+}
+
+// VCPU: 1.0 / MEMORY: 2048
 async function manageCars() {
-  const assignService = new CarAssignService(
-    sheetClient,
-    dynamoCarClient,
-    dynamoUploadedCarClient,
-    categoryInitializer,
-  )
-  await assignService.assign()
+  await carAssignService.assign()
 
-  const accountMap = await assignService.getAccountMap()
-  const userIDs = Array.from(accountMap.keys())
-  console.log(userIDs)
+  const accountIndexMap = await sheetClient.getAccountIndexMap()
+  const firstAccount = accountIndexMap.get(1)
+  if (!firstAccount) {
+    throw new Error("There is no first account")
+  }
 
-  const responses = await Promise.all(
-    userIDs.map(id=>batchClient.submitFunction(id, syncCar.name))
+  const accounts = await sheetClient.getAccounts()
+  const submitResponses = await Promise.all(
+    accounts.map(account=>
+      batchClient.submitSyncJob({
+        jobName: `${syncCars.name}-${account.id}`,
+        command: ["node", "/app/dist/src/index.js", syncCars.name],
+        environment: [{ name: "KCR_ID", value: account.id }],
+      })
+    )
   )
-  console.log(responses);
+  submitResponses.forEach(response => {
+    if (response.$metadata.httpStatusCode !== 200) {
+      console.error(response)
+    }
+  })
 }
 
-async function syncCar() {
-  const syncService = new UploadedCarSyncService(
-    dynamoUploadedCarClient,
-    sheetClient,
-    initializer,
-  )
-  await syncService.syncCarsByEnv()
-
+// VCPU: 2.0 / MEMORY: 4096
+async function syncCars() {
   const kcrId = process.env.KCR_ID
-  if (!kcrId) throw new Error("No id env")
+  if (!kcrId) {
+    throw new Error("No id env");
+  }
+  await uploadedCarSyncService.syncCarsById(kcrId)
 
-  const response = await batchClient.submitFunction(kcrId, uploadCar.name)
-  console.log(response)
-}
-
-async function uploadCar() {
-  const carUploadService = new CarUploadService(
-    sheetClient,
-    dynamoCarClient,
-    dynamoUploadedCarClient,
-    initializer,
-    categoryInitializer,
-  )
-
-  try {
-    await carUploadService.uploadCarByEnv()
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error.name);
-      console.error(error.message);
-      console.error(error.stack);
-    }
-  } finally {
-    await initializer.closePages()
+  const response = await batchClient.submitUploadJob({
+    jobName: `${uploadCars.name}-${kcrId}`,
+    command: ["node", "/app/dist/src/index.js", uploadCars.name],
+    environment: [{ name: "KCR_ID", value: kcrId }],
+    timeout: 60 * 30,
+    attempts: 3
+  })
+  if (response.$metadata.httpStatusCode !== 200) {
+    console.error(response)
   }
 }
 
+// VCPU: 2.0 / MEMORY: 4096
+async function uploadCars() {
+  const kcrId = process.env.KCR_ID
+  if (!kcrId) {
+    throw new Error("No id env");
+  }
+  await carUploadService.uploadCarById(kcrId)
+  await uploadedCarSyncService.syncCarsById(kcrId)
 
-async function crawlCategories() {
-  const categoryService = new CategoryService(sheetClient, crawler, dynamoCategoryClient)
-
-  try {
-    await categoryService.collectCategoryInfo()
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error(error.name);
-      console.error(error.message);
-      console.error(error.stack);
-    }
-  } finally {
-    await initializer.closePages()
+  const carNumbers = await dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(kcrId, false)
+  if (carNumbers.length) {
+    throw new Error("There is more cars to be uploaded. throw error for retry.")
   }
 }
 
-async function checkIPAddress() {
-  const response = await fetch('http://api.ipify.org/?format=json')
-  const body = await response.json()
-  console.log(body.ip);
+// VCPU: 1.0 / MEMORY: 2048
+async function resetAllUploadedCarAsFalse() {
+  await accountResetService.resetAll()
+}
+
+// VCPU: 1.0 / MEMORY: 2048
+async function resetUploadedCarAsFalse() {
+  await accountResetService.resetByEnv()
+}
+
+// VCPU: 1.0 / MEMORY: 2048
+async function removeInvalidImageUploadedCars() {
+  await uploadedCarRemoveService.removeByEnv()
+}
+async function removeAllInvalidImageUploadedCars() {
+  await uploadedCarRemoveService.removeAll()
+}
+
+// VCPU: 1.0 / MEMORY: 2048
+async function collectCategory() {
+  await categoryService.collectCategoryInfo()
 }
 
 const functionMap = new Map<string, Function>([
-  [manageCars.name, manageCars],
-  [syncCar.name, syncCar],
-  [uploadCar.name, uploadCar],
-  [crawlCategories.name, crawlCategories],
-  [checkIPAddress.name, checkIPAddress],
+  [collectDrafts.name, collectDrafts],  // 1
+  [triggerCollectingDetails.name, triggerCollectingDetails],  // 1-2
+  [collectDetails.name, collectDetails],  // 2
+  [manageCars.name, manageCars],  // 3
+  [syncCars.name, syncCars],  // 4
+  [uploadCars.name, uploadCars],  // 5
+
+  [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],
+  [resetUploadedCarAsFalse.name, resetUploadedCarAsFalse],
+  [removeAllInvalidImageUploadedCars.name, removeAllInvalidImageUploadedCars],
+  [removeInvalidImageUploadedCars.name, removeInvalidImageUploadedCars],
+  [collectCategory.name, collectCategory],
 ])
 
 const fc = functionMap.get(process.argv[2])
+
 
 if (!fc) {
   console.error("[Function list]");
@@ -132,6 +191,10 @@ if (!fc) {
   if(!existsSync("./images")) {
     await mkdir("./images")
   }
+  const startTime = Date.now()
   await fc()
+  const endTime = Date.now()
+  const executionTime = Math.ceil((endTime - startTime) / 1000)
+  console.log(`Execution time : ${executionTime}(s)`);
 })()
 

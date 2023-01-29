@@ -4,16 +4,11 @@
   "description": "BCar update package",
   "main": "dist/index.js",
   "scripts": {
-    "start": "docker compose exec crawler-arm64 node /app/dist/src/index.js",
-    "start:amd64": "docker compose exec crawler-amd64 node /app/dist/src/index.js",
-    "start:local": "set -a && source env/.env  && source env/aws.env && set +a && node dist/src/index.js",
-    "build": "tsc && docker compose build crawler-arm64",
-    "build:amd64": "tsc && docker compose build  crawler-amd64",
-    "build:all": "tsc && docker compose build",
-    "container": "docker compose up crawler-arm64 -d",
-    "container:amd64": "docker compose up crawler-amd64 -d",
-    "container:all": "docker compose up -d",
-    "deploy:job:definition": "set -a && source env/.env && source env/aws.env && set +a && tsc && node dist/src/aws/JobDefinitionDeployer.js"
+    "start": "docker compose exec crawler node /app/dist/src/index.js",
+    "start:local": "set -a && source env/.env && source env/aws.env && set +a && node dist/src/index.js",
+    "build": "tsc && docker compose build",
+    "container": "docker compose up -d",
+    "deploy:job:definition": "set -a && source env/.env && source env/aws.env && set +a && node dist/src/aws/JobDefinitionDeployer.js"
   },
   "keywords": [],
   "author": "",
@@ -22,10 +17,12 @@
     "@aws-sdk/client-batch": "^3.196.0",
     "@aws-sdk/client-dynamodb": "^3.196.0",
     "@aws-sdk/client-sns": "^3.196.0",
+    "cheerio": "^1.0.0-rc.12",
     "googleapis": "^110.0.0",
     "puppeteer": "^19.4.1"
   },
   "devDependencies": {
+    "@types/cheerio": "^0.22.31",
     "@types/puppeteer": "^5.4.7"
   }
 }

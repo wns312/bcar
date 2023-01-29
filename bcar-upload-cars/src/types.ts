@@ -1,26 +1,15 @@
 import { envs } from './configs'
+import { Car } from './entities'
 
 export type Environments = typeof envs
+
+export type Incomplete<T> = {
+  [P in keyof T]?: T[P] | undefined | null
+}
 
 export type RangeChunk = {
   start: number,
   end: number
-}
-
-export type Account = {
-  id: string
-  pw: string
-  region: string
-  isTestAccount: boolean
-  isErrorOccured: boolean
-  logStreamUrl: string | null
-  errorContent: string | null
-}
-export type KCRURL = {
-  region: string
-  loginUrl: string
-  registerUrl: string
-  manageUrl: string
 }
 
 export type CarCategory = Map<string, CarManufacturer>
@@ -55,32 +44,8 @@ export interface CarSegment {
   index: number
 }
 
-export interface CarDataObject {
-  PK: string
-  SK: string
-  carCheckSrc: string
-  modelYear: string
-  presentationsDate: string
-  displacement: string
-  mileage: string
-  carImgList: string[]
-  hasMortgage: boolean
-  hasSeizure: boolean
-  title: string
-  fuelType: string
-  carNumber: string
-  registerNumber: string
-  presentationNumber: string
-  price: number
-  hasAccident: string
-  gearBox: string
-  color: string
-  company: string
-  category: string
-}
-
 export interface UploadSource {
-  car: CarDataObject
+  car: Car
   origin: ManufacturerOrigin
   carSegment: CarBase
   carCompany?: CarBase

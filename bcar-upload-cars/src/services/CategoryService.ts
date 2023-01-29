@@ -1,26 +1,20 @@
-import { CategoryCrawler } from "../automations"
+import { CategoryCollector } from "../automations"
 import { SheetClient, DynamoCategoryClient } from "../db"
 
 export class CategoryService {
   constructor(
     private sheetClient: SheetClient,
-    private categoryCrawler: CategoryCrawler,
+    private categoryCollector: CategoryCollector,
     private dynamoCategoryClient: DynamoCategoryClient,
   ) {}
 
 
   async collectCategoryInfo() {
-    const accounts = await this.sheetClient.getAccounts()
-    const { id, pw, region } = accounts[0]
-    const urls = await this.sheetClient.getKcrs()
-    const url = urls.find(url=>url.region === region)
-    if (!url) throw new Error("No proper url");
-    const { loginUrl, registerUrl } = url
+    const { account, regionUrl } = await this.sheetClient.getTestAccountAndRegionUrl()
+    await this.categoryCollector.execute(account.id, account.pw, regionUrl.loginUrl, regionUrl.registerUrl)
 
-    await this.categoryCrawler.execute(id, pw, loginUrl, registerUrl)
-
-    const carManufacturerMap = this.categoryCrawler.carManufacturerMap
-    const carSegmentMap = this.categoryCrawler.carSegmentMap
+    const carManufacturerMap = this.categoryCollector.carManufacturerMap
+    const carSegmentMap = this.categoryCollector.carSegmentMap
 
     const carSegmentResult = await this.dynamoCategoryClient.saveSegments(carSegmentMap)
     const carManufacturerResult = await this.dynamoCategoryClient.saveCompanies(carManufacturerMap)

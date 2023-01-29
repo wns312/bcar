@@ -90,27 +90,3 @@ export class DynamoCategoryClient {
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
   }
 }
-
-  // private async scanWithFilter(PK: string, SK: string, filter: Filter) {
-  //   const result = await this.baseClient.scanItems({
-  //     TableName: this.tableName,
-  //     FilterExpression: `begins_with(SK, :s) and begins_with(PK, :p) and ${filter.key} = :${filter.key}`,
-  //     ExpressionAttributeValues: {
-  //       ":p": { S: PK },
-  //       ":s": { S: SK || PK },
-  //       [`:${filter.key}`]: { S: filter.value },
-  //     }
-  //   })
-  //   return result.Items!
-  // }
-
-  // scanDetailModelByCompany(company: string) {
-  //   return this.scanWithFilter(
-  //     DynamoCategoryClient.detailModelPrefix,
-  //     DynamoCategoryClient.modelPrefix,
-  //     {
-  //       key: "company",
-  //       value: company
-  //     },
-  //   )
-  // }

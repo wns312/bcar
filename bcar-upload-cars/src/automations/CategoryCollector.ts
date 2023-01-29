@@ -1,11 +1,10 @@
 import { Page } from "puppeteer"
-import { BrowserInitializer } from "."
 import { CarCategory, CarDetailModel, CarManufacturer, CarModel, CarSegment, ManufacturerOrigin } from "../types"
-import { delay } from "../utils"
+import { delay, PageInitializer } from "../utils"
 
 // 교차로 로그인 인터페이스를 상속하는 방식으로 login 함수를 다룰 수 있도록 하는것이 바람직해 보임
 // 또한 Nested Map 말고, 어차피 segment, model은 인자로 받아서 들어가므로, 각 map을 따로 만드는것이 좋아보임.. 아닌가?
-export class CategoryCrawler {
+export class CategoryCollector {
   private segmentSelectorPrefix = "#post-form > table:nth-child(10) > tbody > tr:nth-child(1) > td > label"
   private segmentSelectorSuffix = " > input"
   private manufacturerSelector = "#categoryId > dl.ct_a > dd > ul > li"
@@ -14,8 +13,6 @@ export class CategoryCrawler {
   private detailModelSelector = "#categoryId > dl.ct_c > dd > ul > li"
   private _carSegmentMap = new Map<string, CarSegment>()
   private _carManufacturerMap: CarCategory = new Map<string, CarManufacturer>()
-
-  constructor(private initializer: BrowserInitializer) {}
 
   get carSegmentMap() {
     return this._carSegmentMap
@@ -153,11 +150,9 @@ export class CategoryCrawler {
 
   async execute(id: string, pw: string, loginUrl: string, registerUrl: string) {
     const url = loginUrl! + registerUrl!
+    const page = await PageInitializer.createPage()
 
-    await this.initializer.initializeBrowsers(1)
-    const page = await this.initializer.pageList[0]
-
-    await this.initializer.login(page, url, id, pw)
+    await PageInitializer.loginKcr(page, url, id, pw)
     await page.waitForSelector(
       "#post-form > div:nth-child(19) > div.photo_view.clearfix > div > span.custom-button-box > label:nth-child(1)"
     )
@@ -167,15 +162,13 @@ export class CategoryCrawler {
 
     console.log(this.carSegmentMap);
     console.log(this.carManufacturerMap);
-
-    await this.initializer.initializeBrowsers(this.carSegmentMap.size-1)
-    const pages = this.initializer.pageList
+    const pages = [page, ...(await PageInitializer.createPages(this.carSegmentMap.size-1))]
 
     await Promise.all(
       pages.map(page => page.goto(url, { waitUntil: "networkidle2" }))
     )
     await Promise.all(
-      pages.map(page => this.initializer.login(page, url, id, pw))
+      pages.map(page => PageInitializer.loginKcr(page, url, id, pw))
     )
     await Promise.all(
       pages.map(page => page.waitForSelector(
@@ -198,5 +191,6 @@ export class CategoryCrawler {
     await this.createImportedManufacturerMap(page)
     // console.log(this.carManufacturerMap);
     await delay(2000)
+    await PageInitializer.closePages(pages)
   }
 }

@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { writeFile, mkdir, rm, readFile } from "fs/promises"
 import { Page, ProtocolError } from "puppeteer"
-import { Base64Image, CarDataObject, ManufacturerOrigin, UploadSource } from "../types"
+import { Base64Image, ManufacturerOrigin, UploadSource } from "../types"
+import { Car } from '../entities';
 
 export class CarUploaderSelector {
   private constructor() { }
@@ -63,6 +64,11 @@ export class CarUploaderSelector {
   static hasMortgageTrueSelector = CarUploaderSelector.seizureMortgageBase + ":nth-child(2) > td > label:nth-child(2)"
   // static hasSeizureNullSelector = CarUploaderSelector.seizureMortgageBase + ":nth-child(1) > td > label:nth-child(3)"
   // static hasMortgageNullSelector = CarUploaderSelector.seizureMortgageBase + ":nth-child(2) > td > label:nth-child(3)"
+
+  // description
+  static descriptionSelector = "#post-form > div.description > textarea"
+  // presentationNumber
+  static presentationNumberSelector = "#post-form > table:nth-child(10) > tbody > tr:nth-child(17) > td > input"
 
   // color
   static colorSelectSelector = "#carColorItem_title"
@@ -129,11 +135,8 @@ export class CarUploaderSelector {
   }
 
   static getYearMonthFromString(yearMonth: string) {
-    const [yearRaw, monthRaw] = yearMonth.split(" ")
-    return {
-      year: yearRaw.replace("년", ""),
-      month: monthRaw.replace("월", ""),
-    }
+    const [year, month] = yearMonth.split("-")
+    return { year, month }
   }
 
   static getFuelType(fuelType: string) {
@@ -270,8 +273,10 @@ export class CarUploader {
   constructor(
     private page: Page,
     private id: string,
+    private comment: string,
+    private margin: number,
     private registerUrl: string,
-    private sources: UploadSource[]
+    private sources: UploadSource[],
     ) {}
 
   static getImageRootDir(id: string) {
@@ -335,7 +340,7 @@ export class CarUploader {
     await this.page.waitForSelector(CarUploaderSelector.fileUploadedPreviewSelector)
   }
 
-  async inputCarInformation(car: CarDataObject) {
+  async inputCarInformation(car: Car) {
     // modelYear: 연식
     const { year, month } = CarUploaderSelector.getYearMonthFromString(car.modelYear)
     await this.page.select(CarUploaderSelector.modelYearSelector, year)
@@ -371,8 +376,15 @@ export class CarUploader {
       await carColorInput!.type("-")
     }
 
+    // 차량 설명
+    const description = await this.page.waitForSelector(CarUploaderSelector.descriptionSelector)
+    await description!.type(this.comment)
+
+    // 제시번호
+    const presentationNumber = await this.page.waitForSelector(CarUploaderSelector.presentationNumberSelector)
+    await presentationNumber!.type(car.presentationNumber)
+
     // carNumber: 차량번호 / mileage: 주행거리 / displacement: 배기량 / price: 가격
-    const additionalPrice = 40
     const evaluateInputList = [
       {
         selector: CarUploaderSelector.carNumberInputSelector,
@@ -380,15 +392,15 @@ export class CarUploader {
       },
       {
         selector: CarUploaderSelector.mileageInputSelector,
-        value: car.mileage.replace("Km", "").replace(",", ""),
+        value: car.mileage,
       },
       {
         selector: CarUploaderSelector.displacementInputSelector,
-        value: car.displacement.replace("cc", "").replace(",", "").replace("-", "0"),
+        value: car.displacement,
       },
       {
         selector: CarUploaderSelector.priceInputSelector,
-        value: (car.price + additionalPrice).toString(),
+        value: (car.price + this.margin).toString(),
       }
     ]
 
@@ -398,7 +410,7 @@ export class CarUploader {
         if (!input) {
           throw new Error("No proper selector")
         }
-        input.setAttribute('value', value)
+        input.setAttribute('value', value.toString())
       })
     }, evaluateInputList)
   }
@@ -407,14 +419,20 @@ export class CarUploader {
     const { origin, carSegment, carCompany, carModel, carDetailModel, car } = source
     const originSelector = CarUploaderSelector.getOriginSelector(origin)
     const segmentSelector = CarUploaderSelector.getSegmentSelector(carSegment.name)
-    // const companySelector1 = CarUploader.companyBase + `:nth-child(${carCompany.index})`
-    const companySelector2 = CarUploaderSelector.companyDataValueBase + carCompany!.dataValue
+    const companySelector = CarUploaderSelector.companyDataValueBase + carCompany!.dataValue
 
     await this.page.click(originSelector)
     await this.page.click(segmentSelector)
 
-    await this.page.waitForSelector(companySelector2)  // await this.page.click(companySelector1)
-    await this.page.click(companySelector2)
+    if (carCompany && carCompany.name === "기타") {
+      await this.page.waitForSelector(CarUploaderSelector.companyBase)
+      const companyLiList = await this.page.$$(CarUploaderSelector.companyBase)
+      const companyEtcLi = companyLiList[companyLiList.length-1]
+      await companyEtcLi.click()
+    } else {
+      await this.page.waitForSelector(companySelector)
+      await this.page.click(companySelector)
+    }
 
     if (!carModel) {
       if (origin === ManufacturerOrigin.Domestic) {
@@ -452,7 +470,7 @@ export class CarUploader {
 
     await this.page.goto(this.registerUrl, { waitUntil: "networkidle2"})
     await this.page.waitForSelector(CarUploaderSelector.formBase)
-    const base64ImageList = await this.saveImages(imageDir, source.car.carImgList)
+    const base64ImageList = await this.saveImages(imageDir, source.car.images)
 
     await this.inputCarInformation(source.car)  // form 채우기
     // 차량 카테고리 설정
@@ -465,7 +483,6 @@ export class CarUploader {
 
   async uploadCars() {
     for (const source of this.sources) {
-      console.log(source.car.carNumber);
       const imageDir = CarUploader.getImageDir(this.id, source.car.carNumber)
       if(!existsSync(imageDir)) {
         await mkdir(imageDir)
@@ -476,27 +493,20 @@ export class CarUploader {
       } catch (error) {
         this.failedSources.push(source)
         // 처리해야하는 에러. 종료되어야 한다. 또는 재시작 되어야 함
-        // 에러 이름: Error
         // 에러 메시지: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
-        // 에러: Error: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
-        // No element found for selector: #categoryId > dl.ct_b > dd > ul > li.cateid-00000026
-        // WaitForSelector로 처리. 아주 가끔 에러를 일으킴
-        if (
-          error instanceof ProtocolError
-          || !(error instanceof Error)
-          ) {
+        // 에러 메시지: net::ERR_CONNECTION_TIMED_OUT
+        if (error instanceof ProtocolError || !(error instanceof Error)) {
           console.log("Unexpected error: stop execution");
           return
         }
-        console.error(
-          "차량 등록에 실패했습니다."
-          + `\n차량 번호: ${source.car.carNumber}`
-          + `\n차량 제목: ${source.car.title}`
-          + `\n에러 이름: ${error.name}`
-          + `\n에러 메시지: ${error.message}`
-          + `\n에러: ${error}`
-          + `\n스택: ${error.stack}`
-        )
+        console.error("차량 등록에 실패했습니다.")
+        console.error(source.car.carNumber)
+        console.error(source.origin)
+        console.error(source.carSegment)
+        console.error(source.carCompany)
+        console.error(error.name)
+        console.error(error.stack)
+
       } finally {
         if(existsSync(imageDir)) {
           await rm(imageDir, { recursive: true, force: true })

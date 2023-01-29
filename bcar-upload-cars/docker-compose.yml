@@ -1,24 +1,10 @@
 version: '3'
 
 services:
-  crawler-arm64:
+  crawler:
+    # platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile.arm64
-    environment:
-      - NODE_ENV=prod
-    env_file:
-      - ./env/.env
-      - ./env/aws.env
-    volumes:
-      - ./src:/app/src
-      - ./dist:/app/dist
-      - ./images:/app/images
-  crawler-amd64:
-    build:
-      context: .
-      dockerfile: Dockerfile.amd64
-    platform: linux/amd64
     environment:
       - NODE_ENV=prod
     env_file:

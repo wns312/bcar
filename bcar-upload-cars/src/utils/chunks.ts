@@ -15,9 +15,9 @@ export function chunk<T>(arr: T[], size: number): T[][] {
   );
 }
 
-export function rangeChunk(size: number, chunkSize: number) {
+export function rangeChunk(size: number, chunkSize: number, isIndex: boolean = false) {
   const rangeChunks: RangeChunk[] = []
-  for (let i = 1; i < size + 1; i = i + chunkSize) {
+  for (let i = 1; i < size + 1; i += chunkSize) {
     rangeChunks.push({
       start: i,
       end: Math.min(i+chunkSize, size)
@@ -25,3 +25,15 @@ export function rangeChunk(size: number, chunkSize: number) {
   }
   return rangeChunks
 }
+
+export function rangeIndexChunk(length: number, chunkSize: number) {
+  const rangeChunks: RangeChunk[] = []
+  for (let i = 0; i < length; i+= chunkSize) {
+    rangeChunks.push({
+      start: i ? i + 1 : 0,
+      end: i+chunkSize
+    })
+  }
+  return rangeChunks
+}
+
