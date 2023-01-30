@@ -5,7 +5,7 @@ shift
 
 case $COMMAND in
   deploy:img)
-    set -a && source env/.env && source env/aws.env && set +a   # env file import
+    set -a && source env/.env && set +a   # env file import
     if [[ -z $TAG_NAME ]]; then
       echo "No tag name. check env"
       exit 1
@@ -25,7 +25,6 @@ case $COMMAND in
       exit 1
     fi
     gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase=$PASSPHRASE env/.env
-    gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase=$PASSPHRASE env/aws.env
     ;;
   import:env)
     PASSPHRASE=$1
@@ -34,7 +33,6 @@ case $COMMAND in
       exit 1
     fi
     gpg --batch --yes --decrypt --passphrase=$PASSPHRASE --output env/.env env/.env.gpg
-    gpg --batch --yes --decrypt --passphrase=$PASSPHRASE --output env/aws.env env/aws.env.gpg
     ;;
   *)
     echo "Invalid comand '$COMMAND'"

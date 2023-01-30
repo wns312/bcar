@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "deploy": "serverless deploy",
+    "invoke:local": "serverless invoke local --function",
+    "invoke": "serverless invoke --function",
+    "remove": "serverless remove"
+  },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.106",
     "serverless-dotenv-plugin": "^4.0.2",

@@ -1,11 +1,14 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
+import * as Sentry from "@sentry/node"
+import * as Tracing from "@sentry/tracing"
 import { AccountResetter, CategoryCollector, DetailCollector, DraftCollector, InvalidCarRemover } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
 import { AccountResetService, CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarRemoveService, UploadedCarSyncService } from "./services"
 import { CategoryInitializer } from "./utils"
+
 
 const {
   BCAR_CATEGORY_INDEX,
@@ -23,7 +26,14 @@ const {
   SOURCE_LOGIN_PAGE,
   SOURCE_MANAGE_PAGE,
   SOURCE_SEARCH_BASE,
+  SENTRY_DSN,
 } = envs
+
+Sentry.init({
+  dsn: SENTRY_DSN,
+  tracesSampleRate: 1.0,
+});
+
 
 // Collectors
 const draftCollector = new DraftCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE, SOURCE_MANAGE_PAGE, SOURCE_SEARCH_BASE)
@@ -176,25 +186,23 @@ const functionMap = new Map<string, Function>([
 
 const fc = functionMap.get(process.argv[2])
 
-
-if (!fc) {
-  console.error("[Function list]");
-  console.error("--------------------------------");
-  console.error(Array.from(functionMap.keys()).join("\n"));
-  console.error("--------------------------------\n");
-  console.error();
-  throw new Error("There is not matched function");
-}
-
-(async ()=>{
-  await rm('./images/*', { recursive: true, force: true })
-  if(!existsSync("./images")) {
-    await mkdir("./images")
+  if (!fc) {
+    console.error("[Function list]");
+    console.error("--------------------------------");
+    console.error(Array.from(functionMap.keys()).join("\n"));
+    console.error("--------------------------------\n");
+    console.error();
+    throw new Error("There is not matched function");
   }
-  const startTime = Date.now()
-  await fc()
-  const endTime = Date.now()
-  const executionTime = Math.ceil((endTime - startTime) / 1000)
-  console.log(`Execution time : ${executionTime}(s)`);
-})()
 
+  (async ()=>{
+    await rm('./images/*', { recursive: true, force: true })
+    if(!existsSync("./images")) {
+      await mkdir("./images")
+    }
+    const startTime = Date.now()
+    await fc()
+    const endTime = Date.now()
+    const executionTime = Math.ceil((endTime - startTime) / 1000)
+    console.log(`Execution time : ${executionTime}(s)`);
+  })()

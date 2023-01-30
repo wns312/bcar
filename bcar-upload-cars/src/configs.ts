@@ -26,6 +26,7 @@ const {
   GOOGLE_KCRURL_SHEET_NAME,
   GOOGLE_MARGIN_SHEET_NAME,
   GOOGLE_SPREAD_SHEET_ID,
+  SENTRY_DSN,
 } = process.env
 
 const envs = {
@@ -58,6 +59,8 @@ const envs = {
   SOURCE_MANAGE_PAGE: SOURCE_MANAGE_PAGE!,
   SOURCE_SEARCH_BASE: SOURCE_SEARCH_BASE!,
   SOURCE_DETAIL_PAGE_BASE: SOURCE_DETAIL_PAGE_BASE!,
+
+  SENTRY_DSN: SENTRY_DSN!,
 }
 
 if (!Object.values(envs).every(env => env !== undefined)) {
