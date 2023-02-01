@@ -17,8 +17,6 @@
     "@aws-sdk/client-batch": "^3.196.0",
     "@aws-sdk/client-dynamodb": "^3.196.0",
     "@aws-sdk/client-sns": "^3.196.0",
-    "@sentry/node": "^7.34.0",
-    "@sentry/tracing": "^7.34.0",
     "cheerio": "^1.0.0-rc.12",
     "googleapis": "^110.0.0",
     "puppeteer": "^19.4.1"
