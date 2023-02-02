@@ -1,7 +1,5 @@
 import { existsSync } from "node:fs"
 import { mkdir, rm } from "fs/promises"
-import * as Sentry from "@sentry/node"
-import * as Tracing from "@sentry/tracing"
 import { AccountResetter, CategoryCollector, DetailCollector, DraftCollector, InvalidCarRemover } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
@@ -26,13 +24,8 @@ const {
   SOURCE_LOGIN_PAGE,
   SOURCE_MANAGE_PAGE,
   SOURCE_SEARCH_BASE,
-  SENTRY_DSN,
 } = envs
 
-Sentry.init({
-  dsn: SENTRY_DSN,
-  tracesSampleRate: 1.0,
-});
 
 
 // Collectors
