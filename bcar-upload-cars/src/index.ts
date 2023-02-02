@@ -88,54 +88,37 @@ async function manageCars() {
   }
 
   const accounts = await sheetClient.getAccounts()
-  const submitResponses = await Promise.all(
-    accounts.map(account=>
-      batchClient.submitSyncJob({
-        jobName: `${syncCars.name}-${account.id}`,
-        command: ["node", "/app/dist/src/index.js", syncCars.name],
-        environment: [{ name: "KCR_ID", value: account.id }],
-      })
-    )
-  )
-  submitResponses.forEach(response => {
-    if (response.$metadata.httpStatusCode !== 200) {
-      console.error(response)
+  for (const account of accounts) {
+    const carNumbersNotUploaded = await dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(account.id, false)
+    if (!carNumbersNotUploaded.length) {
+      console.log(`${account.id} has nothing to upload`)
+      continue
     }
-  })
+
+    await batchClient.submitUploadJob({
+      jobName: `${syncAndUploadCars.name}-${account.id}`,
+      command: ["node", "/app/dist/src/index.js", syncAndUploadCars.name],
+      environment: [{ name: "KCR_ID", value: account.id }],
+      timeout: 60 * 30,
+      attempts: 3
+    })
+  }
 }
 
 // VCPU: 2.0 / MEMORY: 4096
-async function syncCars() {
+async function syncAndUploadCars() {
   const kcrId = process.env.KCR_ID
   if (!kcrId) {
     throw new Error("No id env");
   }
+
   await uploadedCarSyncService.syncCarsById(kcrId)
-
-  const response = await batchClient.submitUploadJob({
-    jobName: `${uploadCars.name}-${kcrId}`,
-    command: ["node", "/app/dist/src/index.js", uploadCars.name],
-    environment: [{ name: "KCR_ID", value: kcrId }],
-    timeout: 60 * 30,
-    attempts: 3
-  })
-  if (response.$metadata.httpStatusCode !== 200) {
-    console.error(response)
-  }
-}
-
-// VCPU: 2.0 / MEMORY: 4096
-async function uploadCars() {
-  const kcrId = process.env.KCR_ID
-  if (!kcrId) {
-    throw new Error("No id env");
-  }
   await carUploadService.uploadCarById(kcrId)
-  await uploadedCarSyncService.syncCarsById(kcrId)
 
-  const carNumbers = await dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(kcrId, false)
-  if (carNumbers.length) {
-    throw new Error("There is more cars to be uploaded. throw error for retry.")
+  const carNumbersAfterUpload = await dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(kcrId, false)
+  if (carNumbersAfterUpload.length) {
+    console.error("There is more cars to be uploaded. exit 1 for retry.")
+    process.exit(1)
   }
 }
 
@@ -167,8 +150,7 @@ const functionMap = new Map<string, Function>([
   [triggerCollectingDetails.name, triggerCollectingDetails],  // 1-2
   [collectDetails.name, collectDetails],  // 2
   [manageCars.name, manageCars],  // 3
-  [syncCars.name, syncCars],  // 4
-  [uploadCars.name, uploadCars],  // 5
+  [syncAndUploadCars.name, syncAndUploadCars],  // 4
 
   [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],
   [resetUploadedCarAsFalse.name, resetUploadedCarAsFalse],

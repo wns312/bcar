@@ -1,23 +1,21 @@
 import { Page } from "puppeteer"
-import { delay } from "../utils"
-
-type SynchedCar = {
-  carNum: string
-  isDeleted: boolean
-}
 
 export class CarSynchronizer {
+  existingCarMap: Map<string, boolean>
   constructor(
     private page: Page,
     private manageUrl: string,
-    private existingCars: string[],
-  ) {}
+    private existingCarNumbers: string[],
+  ) {
+    this.existingCarMap = new Map<string, boolean>(existingCarNumbers.map(carNumber=>[carNumber, true]))
+  }
 
   async getPageLength() {
     const childTags = await this.page.$$("#_carManagement > div > *")
     return childTags.length
   }
 
+  // 제대로 로직 짜자... 헷갈린다.
   async deleteExpiredCars() {
     const trTagsSelector = "#_carManagement > table > tbody > tr"
     const tdPhotoSelector = "td.photo > a > span"
@@ -26,33 +24,32 @@ export class CarSynchronizer {
     const deleteConfirmButtonSelector = "#fallr-button-confirmButton2"
 
     const trTags = await this.page.$$(trTagsSelector)
-    const synchedCarNumsPromise = trTags.map(async (tr): Promise<SynchedCar>=>{
+
+    // check에 대한 결과를 리턴한다.
+    const isCheckedList = await Promise.all(trTags.map(async (tr)=>{
       const photoTag = await tr.$(tdPhotoSelector)
       if (!photoTag) throw new Error("No photoTag tag")
 
-      const carNum = await photoTag.evaluate(el => el.textContent)
-      if(!carNum) throw new Error(`No car number : ${carNum}`)
+      const carNumber = await photoTag.evaluate(el => el.textContent)
+      if(!carNumber) throw new Error(`No car number : ${carNumber}`)
 
-      const isCarExist = this.existingCars.includes(carNum)
+      // DB와 Page에 둘 다 있는 것
+      const isExist = this.existingCarMap.get(carNumber)
 
-      if (isCarExist) {
-        return { carNum, isDeleted: false }  // 여기선 isDeleted: false를 리턴
+      if (isExist) {
+        this.existingCarMap.delete(carNumber)
+        return false
       }
-
+      // DB에 없는 차량인 경우 check
       const checkBoxTag = await tr.$(tdCheckBoxSelector)
       if (!checkBoxTag) throw new Error("No checkbox")
-      await checkBoxTag.evaluate(el => el.checked = true);
-      return { carNum, isDeleted: true }  // 여기선 isDeleted: true를 리턴
-    })
+      await checkBoxTag.evaluate(el => el.checked = true)
 
-    const synchedCarNums = await Promise.all(synchedCarNumsPromise)
-    // 삭제될 것
-    const checkedCarNums = synchedCarNums.filter(obj=> obj.isDeleted).map(obj=>obj.carNum)
-    // 남아있을 것
-    const unCheckedCarNums = synchedCarNums.filter(obj=> !obj.isDeleted).map(obj=>obj.carNum)
+      return true
+    }))
 
-    // 삭제할 차량이 있는 경우에만 click해야한다.
-    if (!checkedCarNums.length) return unCheckedCarNums
+    const isChecked = isCheckedList.filter(isChecked=>isChecked).length
+    if (!isChecked) return
 
     const deleteButton = await this.page.$(deleteButtonSelector)
     if (!deleteButton) throw new Error("No deleteButton")
@@ -67,23 +64,17 @@ export class CarSynchronizer {
     }, deleteConfirmButtonSelector)
 
     await this.page.waitForNavigation({ waitUntil: "networkidle2"})
-
-    return unCheckedCarNums
   }
 
   async sync() {
     let pageNumber = await this.getPageLength()
-    let existingCarNums: string[] = []
-
     while (pageNumber) {
       console.log(`Page: ${pageNumber}`)
-      const lastPageUrl = this.manageUrl + `?page=${pageNumber}`
-      await this.page.goto(lastPageUrl, { waitUntil: "networkidle2"})
+      await this.page.goto(this.manageUrl + `?page=${pageNumber}`, { waitUntil: "networkidle2"})
       await this.page.waitForSelector("#_carManagement > table")
-      const existingCarNumsInPage = await this.deleteExpiredCars()
-      existingCarNums = [...existingCarNums, ...existingCarNumsInPage]
+      await this.deleteExpiredCars()
       pageNumber -= 1
     }
-    return existingCarNums
+    return this.existingCarMap
   }
 }
