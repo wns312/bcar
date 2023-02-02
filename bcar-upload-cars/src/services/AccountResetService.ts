@@ -63,20 +63,23 @@ export class AccountResetService {
       await dialog.accept()
     })
     PageInitializer.activateEvents(page)
+    try {
+      for (const account of accounts) {
+        console.log(account.id)
 
-    for (const account of accounts) {
-      console.log(account.id)
-
-      const regionUrl = regionUrlMap.get(account.region)
-      if (!regionUrl) {
-        console.log(`${account.region} does not exist in regionUrlMap`)
-        return
+        const regionUrl = regionUrlMap.get(account.region)
+        if (!regionUrl) {
+          console.log(`${account.region} does not exist in regionUrlMap`)
+          return
+        }
+        await this.execute(page, account, regionUrl)
       }
+    } catch (error) {
+      throw error
 
-      await this.execute(page, account, regionUrl)
+    } finally {
+      await PageInitializer.closePage(page)
     }
-
-    await PageInitializer.closePage(page)
   }
 
   async resetByIds(ids: string[]) {
