@@ -79,13 +79,7 @@ async function collectDetails() {
 
 // VCPU: 1.0 / MEMORY: 2048
 async function manageCars() {
-  await carAssignService.assign()
-
-  const accountIndexMap = await sheetClient.getAccountIndexMap()
-  const firstAccount = accountIndexMap.get(1)
-  if (!firstAccount) {
-    throw new Error("There is no first account")
-  }
+  await carAssignService.assignAll()
 
   const accounts = await sheetClient.getAccounts()
   for (const account of accounts) {
@@ -145,11 +139,16 @@ async function collectCategory() {
   await categoryService.collectCategoryInfo()
 }
 
+// async function testAssign() {
+//   await carAssignService.assignAll()
+// }
+
 const functionMap = new Map<string, Function>([
   [collectDrafts.name, collectDrafts],  // 1
   [triggerCollectingDetails.name, triggerCollectingDetails],  // 1-2
   [collectDetails.name, collectDetails],  // 2
   [manageCars.name, manageCars],  // 3
+  // [testAssign.name, testAssign],  // 3
   [syncAndUploadCars.name, syncAndUploadCars],  // 4
 
   [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],

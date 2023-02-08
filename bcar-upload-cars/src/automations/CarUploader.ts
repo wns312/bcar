@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { writeFile, mkdir, rm, readFile } from "fs/promises"
 import { Page, ProtocolError } from "puppeteer"
-import { Base64Image, ManufacturerOrigin, UploadSource } from "../types"
+import { Base64Image, Origin, UploadSource } from "../types"
 import { Car } from '../entities';
 
 export class CarUploaderSelector {
@@ -109,8 +109,8 @@ export class CarUploaderSelector {
   // sumbmit input
   static submitInputSelector = "#post-form > div.submit_area > input.cof-btn.cof-btn-large.btn_add"
 
-  static getOriginSelector(origin: ManufacturerOrigin) {
-    return origin === ManufacturerOrigin.Domestic ? CarUploaderSelector.domesticSelector : CarUploaderSelector.importedSelector
+  static getOriginSelector(origin: Origin) {
+    return origin === Origin.Domestic ? CarUploaderSelector.domesticSelector : CarUploaderSelector.importedSelector
   }
 
   static getSegmentSelector(segmentName: string) {
@@ -416,7 +416,7 @@ export class CarUploader {
   }
 
   async categorizeCar(source: UploadSource) {
-    const { origin, carSegment, carCompany, carModel, carDetailModel, car } = source
+    const { origin, segment: carSegment, company: carCompany, model: carModel, detailModel: carDetailModel, car } = source
     const originSelector = CarUploaderSelector.getOriginSelector(origin)
     const segmentSelector = CarUploaderSelector.getSegmentSelector(carSegment.name)
     const companySelector = CarUploaderSelector.companyDataValueBase + carCompany!.dataValue
@@ -435,7 +435,7 @@ export class CarUploader {
     }
 
     if (!carModel) {
-      if (origin === ManufacturerOrigin.Domestic) {
+      if (origin === Origin.Domestic) {
         await this.page.waitForSelector(CarUploaderSelector.modelBase)
         const liList = await this.page.$$(CarUploaderSelector.modelBase)
         const etcLi = liList[liList.length-1]
@@ -502,8 +502,8 @@ export class CarUploader {
         console.error("차량 등록에 실패했습니다.")
         console.error(source.car.carNumber)
         console.error(source.origin)
-        console.error(source.carSegment)
-        console.error(source.carCompany)
+        console.error(source.segment)
+        console.error(source.company)
         console.error(error.name)
         console.error(error.stack)
 

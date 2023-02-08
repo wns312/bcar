@@ -1,17 +1,18 @@
 import { categoryConvertor, companyConvertor, modelDetailConverter } from "./converters"
-import { CarManufacturer, CarSegment, ManufacturerOrigin, UploadSource } from "../types"
+import { Company, Segment, Origin, UploadSource } from "../types"
 import { Car } from "../entities"
 
 export class CarClassifier {
   constructor(
     private cars: Car[],
-    private segmentMap: Map<string, CarSegment>,
-    private companyMap: Map<string, CarManufacturer>,
+    private segmentMap: Map<string, Segment>,
+    private companyMap: Map<string, Company>,
   ) {}
 
   private classify(car: Car) {
     const convertedCategory = categoryConvertor.get(car.category)
     const convertedCompany = companyConvertor.get(car.company)
+
 
     if (!convertedCategory || !convertedCompany) return
 
@@ -24,19 +25,20 @@ export class CarClassifier {
     const uploadSource: UploadSource = {
       car,
       origin: convertedCompany!.origin,
-      carSegment: {
+      segment: {
         name: carSegment!.name,
         dataValue: carSegment!.value,
         index: carSegment!.index,
       },
-      carCompany: {
+      company: {
         name: carCompany.name,
         dataValue: carCompany.dataValue,
         index: carCompany.index,
       },
     }
 
-    if (companyOrigin === ManufacturerOrigin.Imported) {
+
+    if (companyOrigin === Origin.Imported) {
       return uploadSource
     }
     const modelKeys = Array.from(carCompany.carModelMap.keys())
@@ -52,11 +54,11 @@ export class CarClassifier {
     }
 
     // 잘못된 segment가 차량에 할당된 경우, 우선 임시로 목록에서 제거해버린다.
-    if (carModel.carSegment !== uploadSource.carSegment.name) {
+    if (carModel.carSegment !== uploadSource.segment.name) {
       return
     }
 
-    uploadSource.carModel = {
+    uploadSource.model = {
       name: carModel.name,
       dataValue: carModel.dataValue,
       index: carModel.index,
@@ -75,7 +77,7 @@ export class CarClassifier {
       console.log([filteredDetails, car.title]);
       return uploadSource
     }
-    uploadSource.carDetailModel = {
+    uploadSource.detailModel = {
       name: filteredDetails[0].name,
       dataValue: filteredDetails[0].dataValue,
       index: filteredDetails[0].index,

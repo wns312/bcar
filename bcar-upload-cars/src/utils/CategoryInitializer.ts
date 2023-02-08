@@ -1,7 +1,7 @@
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { DynamoCategoryClient } from "../db"
 import { Car } from "../entities"
-import { CarDetailModel, CarModel, CarSegment, CarManufacturer, ManufacturerOrigin } from "../types"
+import { DetailModel, Model, Segment, Company, Origin } from "../types"
 
 export class CategoryInitializer {
   constructor(private dynamoCategoryClient: DynamoCategoryClient) {}
@@ -32,8 +32,8 @@ export class CategoryInitializer {
     })
   }
 
-  private createSegmentMap(items: Record<string, AttributeValue>[]): Map<string, CarSegment> {
-    const segmentMap = new Map<string, CarSegment>()
+  private createSegmentMap(items: Record<string, AttributeValue>[]): Map<string, Segment> {
+    const segmentMap = new Map<string, Segment>()
     items.reduce((map, item)=>{
       return map.set(item.name.S!, {
         name: item.name.S!,
@@ -44,23 +44,23 @@ export class CategoryInitializer {
     return segmentMap
   }
 
-  private createCompanyMap(items: Record<string, AttributeValue>[]): Map<string, CarManufacturer> {
-    const manufacturerMap = new Map<string, CarManufacturer>()
+  private createCompanyMap(items: Record<string, AttributeValue>[]): Map<string, Company> {
+    const manufacturerMap = new Map<string, Company>()
     items.reduce((map, item)=>{
       return map.set(item.name.S!, {
-        origin: item.origin.S! === "DOMESTIC" ? ManufacturerOrigin.Domestic : ManufacturerOrigin.Imported,
+        origin: item.origin.S! === "DOMESTIC" ? Origin.Domestic : Origin.Imported,
         name: item.name.S!,
         dataValue: item.value.S!,
         index: Number.parseInt(item.index.N!),
-        carModelMap: new Map<string, CarModel>()
+        carModelMap: new Map<string, Model>()
       })
     }, manufacturerMap)
     return manufacturerMap
   }
 
   private fillCarModelMap(
-    companyMap: Map<string, CarManufacturer>, items: Record<string, AttributeValue>[]
-  ): Map<string, CarManufacturer> {
+    companyMap: Map<string, Company>, items: Record<string, AttributeValue>[]
+  ): Map<string, Company> {
 
     items.reduce((map, item)=>{
       const carManufacturer = map.get(item.company.S!)
@@ -68,7 +68,7 @@ export class CategoryInitializer {
         console.log(item.company.S!);
         throw new Error("There is no proper carModelMap")
       }
-      const detailModels: CarDetailModel[] = []
+      const detailModels: DetailModel[] = []
       let carModelName = item.name.S!
       carModelName = carModelName === "봉고화물" ? "봉고" : carModelName
       carModelName = carModelName === "e-마이티" ? "마이티" : carModelName
@@ -86,8 +86,8 @@ export class CategoryInitializer {
   }
 
   private fillCarDetails(
-    companyMap: Map<string, CarManufacturer>, items: Record<string, AttributeValue>[]
-  ): Map<string, CarManufacturer> {
+    companyMap: Map<string, Company>, items: Record<string, AttributeValue>[]
+  ): Map<string, Company> {
 
     items.reduce((map, item)=>{
       const carManufacturer = map.get(item.company.S!)

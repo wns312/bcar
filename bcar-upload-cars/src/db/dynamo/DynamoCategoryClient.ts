@@ -1,6 +1,6 @@
 import { DynamoBaseClient } from "./DynamoBaseClient"
 import { CategoryFormatter } from "./formatters"
-import { CarManufacturer, CarSegment } from "../../types"
+import { Company, Segment } from "../../types"
 
 export class DynamoCategoryClient {
   baseClient: DynamoBaseClient;
@@ -70,22 +70,22 @@ export class DynamoCategoryClient {
   }
 
   // 1. Segment 저장: PK, SK 지정한 객체를 Item이라는 객체로 감쌈
-  saveSegments(segmentMap: Map<string, CarSegment>) {
+  saveSegments(segmentMap: Map<string, Segment>) {
     const putItems = CategoryFormatter.createSegmentForm(segmentMap)
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
   }
 
-  saveCompanies(carManufacturerMap: Map<string, CarManufacturer>) {
+  saveCompanies(carManufacturerMap: Map<string, Company>) {
     const putItems = CategoryFormatter.createManufacturerForm(carManufacturerMap)
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
   }
 
-  saveModels(companyMap: Map<string, CarManufacturer>) {
+  saveModels(companyMap: Map<string, Company>) {
     const putItems = CategoryFormatter.createCarModelForm(companyMap)
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
   }
 
-  saveDetailModels(companyMap: Map<string, CarManufacturer>) {
+  saveDetailModels(companyMap: Map<string, Company>) {
     const putItems = CategoryFormatter.createCarDetailModelForm(companyMap)
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
   }
