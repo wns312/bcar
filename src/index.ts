@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs"
-import { mkdir, rm } from "fs/promises"
 import { AccountResetter, CategoryCollector, DetailCollector, DraftCollector, InvalidCarRemover } from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
@@ -156,6 +154,26 @@ async function loginTest() {
   await PageInitializer.loginKcr(page, loginUrlRedirectManage, account.id, account.pw)
 }
 
+
+// async function base64Test() {
+//   const url = "http://image.carmodoo.com/data/__carPhoto/003/298/237/cmcar_0.jpg"
+//   const response = await fetch(url)
+//   if (response.status !== 200) {
+//     console.error(response);
+//     throw new Error("Error response");
+//   }
+//   const contentType = response.headers.get('content-type')
+//   if (!contentType) throw new Error(`Content type error: ${contentType}`)
+//   const blob = await response.blob()
+//   const arrayBuffer = await blob.arrayBuffer()
+//   const buffer = Buffer.from(arrayBuffer)
+//   const rawBase64 = buffer.toString('base64')
+//   const ext = contentType.split("/").pop()
+//   console.log(ext)
+//   const base64 = `data:image/${ext};base64,${rawBase64}`
+//   console.log(base64)
+// }
+
 const functionMap = new Map<string, Function>([
   [collectDrafts.name, collectDrafts],  // 1
   [triggerCollectingDetails.name, triggerCollectingDetails],  // 1-2
@@ -164,6 +182,7 @@ const functionMap = new Map<string, Function>([
   [syncAndUploadCars.name, syncAndUploadCars],  // 4
 
   [loginTest.name, loginTest],
+  // [base64Test.name, base64Test],
   [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],
   [resetUploadedCarAsFalse.name, resetUploadedCarAsFalse],
   [removeAllInvalidImageUploadedCars.name, removeAllInvalidImageUploadedCars],
@@ -183,10 +202,6 @@ const fc = functionMap.get(process.argv[2])
   }
 
   (async ()=>{
-    await rm('./images/*', { recursive: true, force: true })
-    if(!existsSync("./images")) {
-      await mkdir("./images")
-    }
     const startTime = Date.now()
     await fc()
     const endTime = Date.now()

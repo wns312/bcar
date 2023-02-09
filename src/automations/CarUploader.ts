@@ -1,5 +1,3 @@
-import { existsSync } from 'node:fs';
-import { writeFile, mkdir, rm, readFile } from "fs/promises"
 import { Page, ProtocolError } from "puppeteer"
 import { Base64Image, Origin, UploadSource } from "../types"
 import { Car } from '../entities';
@@ -279,22 +277,7 @@ export class CarUploader {
     private sources: UploadSource[],
     ) {}
 
-  static getImageRootDir(id: string) {
-    return `./images/${id}`
-  }
-
-  static getImageDir(id: string, carNumber: string) {
-    return CarUploader.getImageRootDir(id) +`/${carNumber}`
-  }
-
-  static getImagePath(id: string, carNumber: string, imageName: string) {
-    return CarUploader.getImageDir(id, carNumber) + imageName
-  }
-
-  // 아래와 같은 파일명 처리해주어야 함
-  // https://file.kcrwork.com/car/t/2023/0108/63ba17b93f491.63ba17b93f497.jpg net::ERR_ABORTED
-  // url.split("_") 부분
-  static async saveImage(imageDir: string, url: string): Promise<Base64Image> {
+  static async convertImageIntoBase64(url: string): Promise<Base64Image> {
     const response = await fetch(url)
     if (response.status !== 200) {
       console.error(response);
@@ -303,20 +286,16 @@ export class CarUploader {
     const blob = await response.blob()
     const arrayBuffer = await blob.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
-    const fileNameList = url.split("_")
-    const actualFileName = fileNameList[fileNameList.length-1]
-    const ext = actualFileName.split(".").pop()
-    const fileDir = `${imageDir}/${actualFileName}`
-    await writeFile(fileDir, buffer)
-    const base64 = await readFile(fileDir, {encoding: "base64"})
+    const base64 = buffer.toString('base64')
+    const ext = url.split(".").pop()
     return {
       base64,
       ext: ext!,
     }
   }
 
-  async saveImages(imageDir: string, carImgList: string[]) {
-    return carImgList.length ? Promise.all(carImgList.map(url=>CarUploader.saveImage(imageDir, url))) : []
+  async convertImagesIntoBase64(carImgList: string[]) {
+    return carImgList.length ? Promise.all(carImgList.map(url=>CarUploader.convertImageIntoBase64(url))) : []
   }
 
 
@@ -466,12 +445,9 @@ export class CarUploader {
   }
 
   async uploadCar(source: UploadSource) {
-    const imageDir = CarUploader.getImageDir(this.id, source.car.carNumber)
-
     await this.page.goto(this.registerUrl, { waitUntil: "networkidle2"})
     await this.page.waitForSelector(CarUploaderSelector.formBase)
-    const base64ImageList = await this.saveImages(imageDir, source.car.images)
-
+    const base64ImageList = await this.convertImagesIntoBase64(source.car.images)
     await this.inputCarInformation(source.car)  // form 채우기
     // 차량 카테고리 설정
     await this.categorizeCar(source)
@@ -483,10 +459,6 @@ export class CarUploader {
 
   async uploadCars() {
     for (const source of this.sources) {
-      const imageDir = CarUploader.getImageDir(this.id, source.car.carNumber)
-      if(!existsSync(imageDir)) {
-        await mkdir(imageDir)
-      }
       try {
         await this.uploadCar(source)
         this.succeededSources.push(source)
@@ -507,10 +479,6 @@ export class CarUploader {
         console.error(error.name)
         console.error(error.stack)
 
-      } finally {
-        if(existsSync(imageDir)) {
-          await rm(imageDir, { recursive: true, force: true })
-        }
       }
     }
   }
