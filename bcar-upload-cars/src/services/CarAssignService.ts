@@ -5,9 +5,7 @@ import { CarClassifier, CategoryInitializer, chunk } from "../utils"
 
 export class CarAssignService {
 
-  static MAX_COUNT = 200
-  // 지역별 대수 구현이 바람직하다.
-  // 20, 30, 20으로 지정할 것
+  static ACCOUNT_MAX_COUNT = 200
   static IMPORT_MAX_COUNT = 20
   static LARGE_TRUCK_MAX_COUNT = 20
   static BONGO_PORTER_MAX_COUNT = 30
@@ -38,10 +36,14 @@ export class CarAssignService {
 
     if (uploadedCarShouldBeDeleted.length) {
       // Delete
-      console.log(uploadedCarShouldBeDeleted);
-      const deleteResults = await this.dynamoUploadedCarClient.batchDelete(uploadedCarShouldBeDeleted)
-      console.log("Delete result: ");
-      console.log(deleteResults);
+      console.log(uploadedCarShouldBeDeleted.map(car => car.carNumber))
+      const deleteResponses = await this.dynamoUploadedCarClient.batchDelete(uploadedCarShouldBeDeleted)
+      console.log("Delete result: ")
+      deleteResponses.forEach(r => {
+        if (r.$metadata.httpStatusCode !== 200) {
+          console.log(r)
+        }
+      })
     }
 
     // Convert to CarObject and return
@@ -57,28 +59,6 @@ export class CarAssignService {
     })
     return carNumbers
   }
-
-  // async assignAll() {
-  //   const [unregisteredCars, { segmentMap, companyMap }, accountMap] = await Promise.all([
-  //     this.getUnregisteredCars(),
-  //     this.categoryInitializer.initializeMaps(),
-  //     this.sheetClient.getAccountIdMap(),
-  //   ])
-  //   const classifiedSources = new CarClassifier(unregisteredCars, segmentMap, companyMap).classifyAll()
-  //   let classifiedCarNums = classifiedSources.map(source=>source.car.carNumber.toString())
-
-  //   const userIds = Array.from(accountMap.keys())
-
-  //   for (const id of userIds) {
-  //     console.log(id);
-  //     const amountCanAssign = classifiedCarNums.length
-  //     if (!classifiedCarNums.length) {
-  //       console.log("No more cars to assign.");
-  //       break
-  //     }
-  //     classifiedCarNums = await this.assign(id, amountCanAssign, classifiedCarNums)
-  //   }
-  // }
 
   private filterSources(classifiedSources: UploadSource[]) {
     // 1. 수입차 200대
@@ -161,7 +141,7 @@ export class CarAssignService {
       const accountUploadedCarNumbers = accountUploadCars.map(car=>car.carNumber)
       const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountUploadedCarNumbers)
       const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
-      accountAssignAmountMap.set(account.id, CarAssignService.MAX_COUNT - accountUploadedCarNumbers.length)
+      accountAssignAmountMap.set(account.id, CarAssignService.ACCOUNT_MAX_COUNT - accountUploadedCarNumbers.length)
       regionSources = regionSources.concat(acccountSources)
     }
     return {
@@ -213,7 +193,7 @@ export class CarAssignService {
     console.log("=============================================================")
 
     for (const [region, accounts] of accountRegionMap) {
-      const totalAmountShouldAssign = accounts.length * CarAssignService.MAX_COUNT
+      const totalAmountShouldAssign = accounts.length * CarAssignService.ACCOUNT_MAX_COUNT
       const { regionSources } = await this.queryRegionSources(segmentMap, companyMap, accounts)
 
       // 현재 실제 할당된 카테고리별 개수
@@ -371,7 +351,7 @@ export class CarAssignService {
         accountAssignAmountMap,
       } = await this.queryRegionSources(segmentMap, companyMap, accounts)
 
-      const totalAmountShouldAssign = accounts.length * CarAssignService.MAX_COUNT
+      const totalAmountShouldAssign = accounts.length * CarAssignService.ACCOUNT_MAX_COUNT
       let assignableAmount = totalAmountShouldAssign - regionSources.length
 
       console.log(`${region} 지역에 할당되어야 할 차량의 총량: ${totalAmountShouldAssign}`)
@@ -453,3 +433,25 @@ export class CarAssignService {
   }
 
 }
+
+  // async assignAll() {
+  //   const [unregisteredCars, { segmentMap, companyMap }, accountMap] = await Promise.all([
+  //     this.getUnregisteredCars(),
+  //     this.categoryInitializer.initializeMaps(),
+  //     this.sheetClient.getAccountIdMap(),
+  //   ])
+  //   const classifiedSources = new CarClassifier(unregisteredCars, segmentMap, companyMap).classifyAll()
+  //   let classifiedCarNums = classifiedSources.map(source=>source.car.carNumber.toString())
+
+  //   const userIds = Array.from(accountMap.keys())
+
+  //   for (const id of userIds) {
+  //     console.log(id);
+  //     const amountCanAssign = classifiedCarNums.length
+  //     if (!classifiedCarNums.length) {
+  //       console.log("No more cars to assign.");
+  //       break
+  //     }
+  //     classifiedCarNums = await this.assign(id, amountCanAssign, classifiedCarNums)
+  //   }
+  // }

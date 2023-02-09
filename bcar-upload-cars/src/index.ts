@@ -5,7 +5,7 @@ import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
 import { AccountResetService, CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarRemoveService, UploadedCarSyncService } from "./services"
-import { CategoryInitializer } from "./utils"
+import { CategoryInitializer, PageInitializer } from "./utils"
 
 
 const {
@@ -25,8 +25,6 @@ const {
   SOURCE_MANAGE_PAGE,
   SOURCE_SEARCH_BASE,
 } = envs
-
-
 
 // Collectors
 const draftCollector = new DraftCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE, SOURCE_MANAGE_PAGE, SOURCE_SEARCH_BASE)
@@ -75,6 +73,13 @@ async function triggerCollectingDetails() {
 // VCPU: 2.0 / MEMORY: 4096
 async function collectDetails() {
   await carCollectService.collectDetails()
+  const response = await batchClient.submitSyncJob({
+    jobName: manageCars.name,
+    command: ["node", "/app/dist/src/index.js", manageCars.name],
+  })
+  if (response.$metadata.httpStatusCode !== 200) {
+    console.error(response)
+  }
 }
 
 // VCPU: 1.0 / MEMORY: 2048
@@ -139,18 +144,26 @@ async function collectCategory() {
   await categoryService.collectCategoryInfo()
 }
 
-// async function testAssign() {
-//   await carAssignService.assignAll()
-// }
+async function loginTest() {
+  const id = process.env.KCR_ID
+  if (!id) {
+    throw new Error("No id env");
+  }
+
+  const { account, regionUrl } = await sheetClient.getAccountAndRegionUrl(id)
+  const { loginUrlRedirectManage } = regionUrl
+  const page = await PageInitializer.createPage()
+  await PageInitializer.loginKcr(page, loginUrlRedirectManage, account.id, account.pw)
+}
 
 const functionMap = new Map<string, Function>([
   [collectDrafts.name, collectDrafts],  // 1
   [triggerCollectingDetails.name, triggerCollectingDetails],  // 1-2
   [collectDetails.name, collectDetails],  // 2
   [manageCars.name, manageCars],  // 3
-  // [testAssign.name, testAssign],  // 3
   [syncAndUploadCars.name, syncAndUploadCars],  // 4
 
+  [loginTest.name, loginTest],
   [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],
   [resetUploadedCarAsFalse.name, resetUploadedCarAsFalse],
   [removeAllInvalidImageUploadedCars.name, removeAllInvalidImageUploadedCars],
