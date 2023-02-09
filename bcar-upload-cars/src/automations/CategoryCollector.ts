@@ -1,5 +1,5 @@
 import { Page } from "puppeteer"
-import { CarCategory, CarDetailModel, CarManufacturer, CarModel, CarSegment, ManufacturerOrigin } from "../types"
+import { CarCategory, DetailModel, Company, Model, Segment, Origin } from "../types"
 import { delay, PageInitializer } from "../utils"
 
 // 교차로 로그인 인터페이스를 상속하는 방식으로 login 함수를 다룰 수 있도록 하는것이 바람직해 보임
@@ -11,8 +11,8 @@ export class CategoryCollector {
   private manufacturerOriginSelector = "#post-form > table:nth-child(10) > tbody > tr:nth-child(2) > td > p > label"
   private modelSelector = "#categoryId > dl.ct_b > dd > ul > li"
   private detailModelSelector = "#categoryId > dl.ct_c > dd > ul > li"
-  private _carSegmentMap = new Map<string, CarSegment>()
-  private _carManufacturerMap: CarCategory = new Map<string, CarManufacturer>()
+  private _carSegmentMap = new Map<string, Segment>()
+  private _carManufacturerMap: CarCategory = new Map<string, Company>()
 
   get carSegmentMap() {
     return this._carSegmentMap
@@ -20,10 +20,10 @@ export class CategoryCollector {
   get carManufacturerMap() {
     return this._carManufacturerMap
   }
-  private set carSegmentMap(carSegmentMap : Map<string, CarSegment>) {
+  private set carSegmentMap(carSegmentMap : Map<string, Segment>) {
     this._carSegmentMap = carSegmentMap;
   }
-  private set carManufacturerMap(carManufacturerMap : Map<string, CarManufacturer>) {
+  private set carManufacturerMap(carManufacturerMap : Map<string, Company>) {
     this._carManufacturerMap = carManufacturerMap;
   }
 
@@ -48,8 +48,8 @@ export class CategoryCollector {
         name: ele[0],
         dataValue: ele[1],
         index: index + 1,
-        origin: ManufacturerOrigin.Domestic,
-        carModelMap: new Map<string, CarModel>()
+        origin: Origin.Domestic,
+        carModelMap: new Map<string, Model>()
       })
     }, this.carManufacturerMap)
   }
@@ -70,8 +70,8 @@ export class CategoryCollector {
         name: ele[0],
         dataValue: ele[1],
         index: index + 1,
-        origin: ManufacturerOrigin.Imported,
-        carModelMap: new Map<string, CarModel>()
+        origin: Origin.Imported,
+        carModelMap: new Map<string, Model>()
       })
     }, this.carManufacturerMap)
   }
@@ -95,14 +95,14 @@ export class CategoryCollector {
       elements=> elements.map(ele => [ele.textContent!, ele.getAttribute('data-value')!])
     )
 
-    return carDetails.map((carDetail, index): CarDetailModel => ({
+    return carDetails.map((carDetail, index): DetailModel => ({
       name: carDetail[0].split(' (')[0],
       dataValue: carDetail[1],
       index
     }))
   }
 
-  private async collectCarModel(page: Page, carModelMap: Map<string,CarModel>, segment: string) {
+  private async collectCarModel(page: Page, carModelMap: Map<string,Model>, segment: string) {
     const modelLen = await page.$$eval(this.modelSelector, elements => elements.length)
     for (let i = 1; i <= modelLen - 1; i++) {
       const modelSelector = this.modelSelector + `:nth-child(${i})`

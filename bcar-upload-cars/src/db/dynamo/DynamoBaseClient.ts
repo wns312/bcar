@@ -78,6 +78,7 @@ export class DynamoBaseClient {
         PK: { S: pk },
         SK: { S: sk },
       }))
+    // 여기도 이슈가 생기는 경우 순차적으로 가져오도록 변경해야 될 수도 있음
     const responses = chunk(keyInputs, 100).map(keys => {
       return this.batchGetItem({
         RequestItems: {

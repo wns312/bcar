@@ -141,6 +141,18 @@ export class SheetClient {
     const accounts = await this.getAccounts()
     return new Map<string, Account>(accounts.map(account=>[account.id, account]))
   }
+  async getAccountRegionMap() {
+    const accounts = await this.getAccounts()
+    return accounts.reduce((map, account) => {
+      const accounts = map.get(account.region)
+      if (!accounts) {
+        return map.set(account.region, [account])
+      }
+      accounts.push(account)
+      return map
+    }, new Map<string, Account[]>())
+    // return new Map<string, Account>(accounts.map(account=>[account.id, account]))
+  }
 
   async getAccountIndexMap() {
     const accounts = await this.getAccounts()

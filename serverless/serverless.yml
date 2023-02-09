@@ -27,9 +27,9 @@ functions:
       - schedule: cron(0 21 * * ? *) # 아침 6시
   manageCars:
     handler: index.manageCars
-    events:
-      - schedule: cron(0 13 * * ? *) # 저녁 10시
-      - schedule: cron(0 22 * * ? *) # 아침 7시
+    # events:
+      # - schedule: cron(0 13 * * ? *) # 저녁 10시
+      # - schedule: cron(0 22 * * ? *) # 아침 7시
 
 plugins:
   - serverless-plugin-typescript

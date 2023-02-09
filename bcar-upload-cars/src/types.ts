@@ -12,7 +12,7 @@ export type RangeChunk = {
   end: number
 }
 
-export type CarCategory = Map<string, CarManufacturer>
+export type CarCategory = Map<string, Company>
 
 export interface CarBase {
   name: string
@@ -20,25 +20,25 @@ export interface CarBase {
   index: number
 }
 
-export enum ManufacturerOrigin {
+export enum Origin {
   Domestic = "DOMESTIC",
   Imported = "IMPORTED",
 }
 
-export interface CarManufacturer extends CarBase {
-  origin: ManufacturerOrigin
-  carModelMap: Map<string, CarModel>
+export interface Company extends CarBase {
+  origin: Origin
+  carModelMap: Map<string, Model>
 }
 
-export interface CarModel extends CarBase {
+export interface Model extends CarBase {
   carSegment: string
-  detailModels: CarDetailModel[] | null
+  detailModels: DetailModel[] | null
 }
 
-export interface CarDetailModel extends CarBase {
+export interface DetailModel extends CarBase {
 }
 
-export interface CarSegment {
+export interface Segment {
   name: string
   value: string
   index: number
@@ -46,11 +46,11 @@ export interface CarSegment {
 
 export interface UploadSource {
   car: Car
-  origin: ManufacturerOrigin
-  carSegment: CarBase
-  carCompany?: CarBase
-  carModel?: CarBase
-  carDetailModel?: CarBase
+  origin: Origin
+  segment: CarBase
+  company: CarBase
+  model?: CarBase
+  detailModel?: CarBase
 }
 
 export interface Base64Image {
