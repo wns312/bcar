@@ -139,9 +139,10 @@ export class CarAssignService {
     for (const account of accounts) {
       const accountUploadCars = await this.dynamoUploadedCarClient.queryById(account.id)
       const accountUploadedCarNumbers = accountUploadCars.map(car=>car.carNumber)
+      accountAssignAmountMap.set(account.id, CarAssignService.ACCOUNT_MAX_COUNT - accountUploadedCarNumbers.length)
+      if (!accountUploadedCarNumbers.length) continue
       const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountUploadedCarNumbers)
       const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
-      accountAssignAmountMap.set(account.id, CarAssignService.ACCOUNT_MAX_COUNT - accountUploadedCarNumbers.length)
       regionSources = regionSources.concat(acccountSources)
     }
     return {

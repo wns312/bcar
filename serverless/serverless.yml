@@ -20,16 +20,15 @@ provider:
 functions:
   checkIPAddress:
     handler: index.checkIPAddress
+  manageCars:
+    handler: index.manageCars
   collectDrafts:
     handler: index.collectDrafts
     events:
-      - schedule: cron(0 12 * * ? *) # 저녁 9시
       - schedule: cron(0 21 * * ? *) # 아침 6시
-  manageCars:
-    handler: index.manageCars
-    # events:
-      # - schedule: cron(0 13 * * ? *) # 저녁 10시
-      # - schedule: cron(0 22 * * ? *) # 아침 7시
+      - schedule: cron(0 3 * * ? *)  # 정오 12시
+      - schedule: cron(0 7 * * ? *)  # 오후 4시
+      - schedule: cron(0 12 * * ? *) # 저녁 9시
 
 plugins:
   - serverless-plugin-typescript
