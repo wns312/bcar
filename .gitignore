@@ -1,1 +1,8 @@
+dist
+images
+node_modules
+passphrase
+
 .vscode
+
+*.env

@@ -19,20 +19,24 @@ case $COMMAND in
     docker tag ${DOCKER_IMAGE_ID} ${DOCKER_IMAGE_TAG} && docker push ${DOCKER_IMAGE_TAG}  # docker tag assign & docker image push
     ;;
   export:env)
-    PASSPHRASE=$1
+    PASSPHRASE=$(cat passphrase)
+    echo $PASSPHRASE
     if [[ -z $PASSPHRASE ]]; then
       echo "No passphrase"
       exit 1
     fi
     gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase=$PASSPHRASE env/.env
+    gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase=$PASSPHRASE env/serverless.env
     ;;
   import:env)
-    PASSPHRASE=$1
+    PASSPHRASE=$(cat passphrase)
+    echo $PASSPHRASE
     if [[ -z $PASSPHRASE ]]; then
       echo "No passphrase"
       exit 1
     fi
     gpg --batch --yes --decrypt --passphrase=$PASSPHRASE --output env/.env env/.env.gpg
+    gpg --batch --yes --decrypt --passphrase=$PASSPHRASE --output env/serverless.env env/serverless.env.gpg
     ;;
   *)
     echo "Invalid comand '$COMMAND'"

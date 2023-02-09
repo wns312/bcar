@@ -4,7 +4,7 @@ frameworkVersion: '3'
 useDotenv: true
 custom:
   dotenv:
-    path: env/.env
+    path: ../env/serverless.env
 provider:
   name: aws
   stage: "prod"

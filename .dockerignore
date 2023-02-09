@@ -1,0 +1,23 @@
+bcar
+node_modules
+passphrase
+serverless
+
+#VSCode
+.vscode
+
+# Env
+**/env
+
+# Git
+.gitignore
+.git
+
+# EditorConfig
+.editorconfig
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+README.md
