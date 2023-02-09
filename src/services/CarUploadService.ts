@@ -1,12 +1,9 @@
-import { existsSync } from 'node:fs';
-import { mkdir, rm } from "fs/promises"
 import { Page } from "puppeteer"
 import { CarUploader } from "../automations"
 import { SheetClient, DynamoCarClient, DynamoUploadedCarClient } from "../db"
-import { Account, RegionUrl } from "../entities"
+import { Account, Car, RegionUrl } from "../entities"
 import { UploadSource } from "../types"
 import { CarClassifier, CategoryInitializer, chunk, PageInitializer } from "../utils"
-import { Car } from '../entities';
 
 export class CarUploadService {
   constructor(
@@ -53,7 +50,7 @@ export class CarUploadService {
     })
   }
 
-  async uploadCarById(id: string, worker: number = 3) {
+  async uploadCarById(id: string, worker: number = 4) {
     const [cars, { segmentMap, companyMap }, { account, regionUrl }] = await Promise.all([
       this.getUserCars(id),
       this.categoryInitializer.initializeMaps(),
@@ -69,8 +66,6 @@ export class CarUploadService {
     const chunkedCars = chunk(classifiedCars, Math.ceil((classifiedCars.length / worker)))
     chunkedCars.forEach(chunk=>console.log(chunk.length))
 
-    const rootDir = CarUploader.getImageRootDir(id)
-    if(!existsSync(rootDir)) await mkdir(rootDir)
     const pages = await PageInitializer.createPages(chunkedCars.length)
     console.log("차량 업로드")
 
@@ -83,7 +78,6 @@ export class CarUploadService {
       console.error(e)
     } finally {
       await PageInitializer.closePages(pages)
-      await rm(rootDir, { recursive: true, force: true })
     }
   }
 }
