@@ -18,10 +18,6 @@ provider:
           Resource: "*"
 
 functions:
-  checkIPAddress:
-    handler: index.checkIPAddress
-  manageCars:
-    handler: index.manageCars
   collectDrafts:
     handler: index.collectDrafts
     events:
@@ -29,6 +25,8 @@ functions:
       - schedule: cron(0 3 * * ? *)  # 정오 12시
       - schedule: cron(0 7 * * ? *)  # 오후 4시
       - schedule: cron(0 12 * * ? *) # 저녁 9시
+  manageCars:
+    handler: index.manageCars
 
 plugins:
   - serverless-plugin-typescript

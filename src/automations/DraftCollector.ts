@@ -1,6 +1,6 @@
 import { Page } from "puppeteer"
 import { DraftCar } from "../entities"
-import { PageInitializer } from "../utils"
+import { PageInitializer, rangeChunk } from "../utils"
 
 export class DraftCollector {
 
@@ -30,22 +30,34 @@ export class DraftCollector {
     await this.waitForSearchList(page)
   }
 
-  private async collectPageAmount(page: Page) {
-    const rawCarAmount = await page.$eval('#sellOpenCarCount', (ele) => {
-      if (!ele.textContent) throw new Error("text is Empty")
-      return ele.textContent!
-    })
-    const carAmount = parseInt(rawCarAmount.replaceAll(",", ""))
-    const pageAmount = Math.ceil(carAmount / 100) + 1
+  private async collectPageAmount() {
+    const page = await PageInitializer.createPage()
+    try {
+
+      await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
+      await this.setPrice(page, 0, 2000)
+      const rawCarAmount = await page.$eval('#sellOpenCarCount', (ele) => {
+        if (!ele.textContent) throw new Error("text is Empty")
+        return ele.textContent!
+      })
+      const carAmount = parseInt(rawCarAmount.replaceAll(",", ""))
+      const pageAmount = Math.ceil(carAmount / 100) + 1
+      console.log("Total page:", pageAmount, "/ Total car amount :", carAmount)
+
     return {
       carAmount,
       pageAmount,
     }
+    } catch (error) {
+      throw error
+    } finally {
+      await PageInitializer.closePage(page)
+    }
   }
 
-  private async collect(page: Page, endPage: number) {
+  private async collectRange(page: Page, startPage: number, endPage: number) {
     let rawDraftCars: DraftCar[] = []
-    for (let pageNumber = 1; pageNumber < endPage; pageNumber++) {
+    for (let pageNumber = startPage; pageNumber < endPage; pageNumber++) {
       console.log(`Page : ${pageNumber} / ${endPage} (${rawDraftCars.length})`)
 
       const rawDrafts = await page.evaluate(async (sourceSearchBase, pageNumber)=>{
@@ -82,44 +94,37 @@ export class DraftCollector {
     return rawDraftCars
   }
 
+
   async collectDraftCars() {
-    const page = await PageInitializer.createPage()
-    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    const { pageAmount, carAmount } = await this.collectPageAmount()
+    const ranges = rangeChunk(pageAmount, 40)
+
     try {
-      const startTime = Date.now()
-      await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
-      await this.setPrice(page, 0, 2000)
-
-      const {carAmount, pageAmount} = await this.collectPageAmount(page)
-      console.log("Total page:", pageAmount, "/ Total car amount :", carAmount)
-
-      const draftCars = await this.collect(page, pageAmount)
-      const endTime = Date.now()
-
-      console.log(`Total ${draftCars.length} / ${carAmount} cars collected`);
-
-      console.log(endTime - startTime);
+      const results = await Promise.all(
+        ranges.map(async ({start, end})=> {
+          const page = await PageInitializer.createPage()
+          try {
+            await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
+            const draftCarsChunk = await this.collectRange(page, start, end)
+            return draftCarsChunk
+          } catch (error) {
+            throw error
+          } finally {
+            await PageInitializer.closePage(page)
+          }
+        })
+      )
+      const draftCars = results.flat()
+      const setSize = new Set<string>(draftCars.map(car=>car.carNumber)).size
+      if (setSize !== carAmount) {
+        throw new Error(`Crawled amount is not correct: ${setSize} / ${carAmount}`)
+      }
+      console.log(`Total ${setSize} / ${carAmount} cars collected`)
       return draftCars
     } catch (error) {
       console.error("Crawl list failed")
       throw error
-    } finally {
-      await page.browser().close()
     }
   }
 
-  async collectDraftCarsWithEndPage(endPage: number) {
-    const page = await PageInitializer.createPage()
-    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
-    try {
-      await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
-      const draftCars = await this.collect(page, endPage)
-      return draftCars
-    } catch (error) {
-      console.error("Crawl list failed")
-      throw error
-    } finally {
-      await page.browser().close()
-    }
-  }
 }

@@ -27,8 +27,6 @@ export class CarCollectService {
     }
 
     const cars = await this.dynamoCarClient.queryCars()
-    const carNumbers = cars.map(car=>car.carNumber)
-
     console.log("Existing drafts :", existingDraftCars.length);
     console.log("Existing cars :", cars.length);
 
@@ -58,7 +56,7 @@ export class CarCollectService {
         }
       })
     }
-    return draftCarShouldCrawl.length
+    return Boolean(draftCarShouldCrawl.length) || Boolean(carsShouldDelete.length)
   }
 
   async collectDetails() {
