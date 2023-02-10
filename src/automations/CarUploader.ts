@@ -1,6 +1,6 @@
 import { Page, ProtocolError } from "puppeteer"
 import { Base64Image, Origin, UploadSource } from "../types"
-import { Car } from '../entities';
+import { Margin } from '../entities'
 
 export class CarUploaderSelector {
   private constructor() { }
@@ -272,7 +272,7 @@ export class CarUploader {
     private page: Page,
     private id: string,
     private comment: string,
-    private margin: number,
+    private marginMap: Map<string, Margin[]>,
     private registerUrl: string,
     private sources: UploadSource[],
     ) {}
@@ -319,7 +319,8 @@ export class CarUploader {
     await this.page.waitForSelector(CarUploaderSelector.fileUploadedPreviewSelector)
   }
 
-  async inputCarInformation(car: Car) {
+  async inputCarInformation(source: UploadSource) {
+    const { origin, car } = source
     // modelYear: 연식
     const { year, month } = CarUploaderSelector.getYearMonthFromString(car.modelYear)
     await this.page.select(CarUploaderSelector.modelYearSelector, year)
@@ -364,6 +365,23 @@ export class CarUploader {
     await presentationNumber!.type(car.presentationNumber)
 
     // carNumber: 차량번호 / mileage: 주행거리 / displacement: 배기량 / price: 가격
+    const margins = this.marginMap.get(origin)!
+    let carMargin = 0
+    for (const { maxPrice, margin } of margins) {
+      if (car.price <= maxPrice) {
+        carMargin = margin
+        break
+      }
+    }
+    if (!carMargin) {
+      console.error(source.origin)
+      console.error(source.car.price)
+      console.error(margins)
+      console.error(carMargin)
+      throw new Error("Margin error")
+    }
+    console.log(`Margin : ${carMargin}`)
+
     const evaluateInputList = [
       {
         selector: CarUploaderSelector.carNumberInputSelector,
@@ -379,7 +397,7 @@ export class CarUploader {
       },
       {
         selector: CarUploaderSelector.priceInputSelector,
-        value: (car.price + this.margin).toString(),
+        value: (car.price + carMargin).toString(),
       }
     ]
 
@@ -448,7 +466,7 @@ export class CarUploader {
     await this.page.goto(this.registerUrl, { waitUntil: "networkidle2"})
     await this.page.waitForSelector(CarUploaderSelector.formBase)
     const base64ImageList = await this.convertImagesIntoBase64(source.car.images)
-    await this.inputCarInformation(source.car)  // form 채우기
+    await this.inputCarInformation(source)  // form 채우기
     // 차량 카테고리 설정
     await this.categorizeCar(source)
     await this.page.focus(CarUploaderSelector.imageRegisterButtonSelector)
