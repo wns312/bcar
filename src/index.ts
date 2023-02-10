@@ -1,8 +1,22 @@
-import { AccountResetter, CategoryCollector, DetailCollector, DraftCollector, InvalidCarRemover } from "./automations"
+import {
+  AccountResetter,
+  CategoryCollector,
+  DetailCollector,
+  DraftCollector,
+  InvalidCarRemover
+} from "./automations"
 import { BatchClient } from "./aws"
 import { envs } from "./configs"
 import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "./db"
-import { AccountResetService, CarAssignService, CarCollectService, CarUploadService, CategoryService, UploadedCarRemoveService, UploadedCarSyncService } from "./services"
+import {
+  AccountResetService,
+  CarAssignService,
+  CarCollectService,
+  CarUploadService,
+  CategoryService,
+  UploadedCarRemoveService,
+  UploadedCarSyncService
+} from "./services"
 import { CategoryInitializer, PageInitializer } from "./utils"
 
 
@@ -28,8 +42,8 @@ const {
 const draftCollector = new DraftCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE, SOURCE_MANAGE_PAGE, SOURCE_SEARCH_BASE)
 const detailCollector = new DetailCollector()
 const categoryCollector = new CategoryCollector()
-const accountResetter = new AccountResetter()
-const invalidCarRemover = new InvalidCarRemover()
+// const accountResetter = new AccountResetter()
+// const invalidCarRemover = new InvalidCarRemover()
 // Repositories
 const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
 const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
@@ -47,21 +61,22 @@ const carAssignService = new CarAssignService(sheetClient, dynamoCarClient, dyna
 const uploadedCarSyncService = new UploadedCarSyncService(dynamoUploadedCarClient, sheetClient)
 const carUploadService = new CarUploadService(sheetClient, dynamoCarClient, dynamoUploadedCarClient, categoryInitializer)
 const categoryService = new CategoryService(sheetClient, categoryCollector, dynamoCategoryClient)
-const accountResetService = new AccountResetService(sheetClient, dynamoUploadedCarClient, accountResetter)
-const uploadedCarRemoveService = new UploadedCarRemoveService(sheetClient, dynamoUploadedCarClient, invalidCarRemover)
+// const accountResetService = new AccountResetService(sheetClient, dynamoUploadedCarClient, accountResetter)
+// const uploadedCarRemoveService = new UploadedCarRemoveService(sheetClient, dynamoUploadedCarClient, invalidCarRemover)
 
-// VCPU: 1.0 / MEMORY: 2048
+// VCPU: 2.0 / MEMORY: 4096
 async function collectDrafts() {
-  await carCollectService.collectDrafts()
-  await triggerCollectingDetails()
-}
+  const shouldTriggerDetail = await carCollectService.collectDrafts()
+  console.log(shouldTriggerDetail)
 
-// VCPU: 0.25 / MEMORY: 512
-async function triggerCollectingDetails() {
+  if (!shouldTriggerDetail) {
+    console.log("Nothing cars have been changed. end execution.")
+  }
   const response = await batchClient.submitSyncJob({
     jobName: collectDetails.name,
     command: ["node", "/app/dist/src/index.js", collectDetails.name],
     timeout: 60 * 30,
+    attempts: 3
   })
   if (response.$metadata.httpStatusCode !== 200) {
     console.error(response)
@@ -74,6 +89,7 @@ async function collectDetails() {
   const response = await batchClient.submitSyncJob({
     jobName: manageCars.name,
     command: ["node", "/app/dist/src/index.js", manageCars.name],
+    attempts: 3
   })
   if (response.$metadata.httpStatusCode !== 200) {
     console.error(response)
@@ -119,30 +135,30 @@ async function syncAndUploadCars() {
   }
 }
 
-// VCPU: 1.0 / MEMORY: 2048
-async function resetAllUploadedCarAsFalse() {
-  await accountResetService.resetAll()
-}
+// // VCPU: 1.0 / MEMORY: 2048
+// async function resetAllUploadedCarAsFalse() {
+//   await accountResetService.resetAll()
+// }
 
-// VCPU: 1.0 / MEMORY: 2048
-async function resetUploadedCarAsFalse() {
-  await accountResetService.resetByEnv()
-}
+// // VCPU: 1.0 / MEMORY: 2048
+// async function resetUploadedCarAsFalse() {
+//   await accountResetService.resetByEnv()
+// }
 
-// VCPU: 1.0 / MEMORY: 2048
-async function removeInvalidImageUploadedCars() {
-  await uploadedCarRemoveService.removeByEnv()
-}
-async function removeAllInvalidImageUploadedCars() {
-  await uploadedCarRemoveService.removeAll()
-}
+// // VCPU: 1.0 / MEMORY: 2048
+// async function removeInvalidImageUploadedCars() {
+//   await uploadedCarRemoveService.removeByEnv()
+// }
+// async function removeAllInvalidImageUploadedCars() {
+//   await uploadedCarRemoveService.removeAll()
+// }
 
 // VCPU: 1.0 / MEMORY: 2048
 async function collectCategory() {
   await categoryService.collectCategoryInfo()
 }
 
-async function loginTest() {
+async function login() {
   const id = process.env.KCR_ID
   if (!id) {
     throw new Error("No id env");
@@ -154,40 +170,17 @@ async function loginTest() {
   await PageInitializer.loginKcr(page, loginUrlRedirectManage, account.id, account.pw)
 }
 
-
-// async function base64Test() {
-//   const url = "http://image.carmodoo.com/data/__carPhoto/003/298/237/cmcar_0.jpg"
-//   const response = await fetch(url)
-//   if (response.status !== 200) {
-//     console.error(response);
-//     throw new Error("Error response");
-//   }
-//   const contentType = response.headers.get('content-type')
-//   if (!contentType) throw new Error(`Content type error: ${contentType}`)
-//   const blob = await response.blob()
-//   const arrayBuffer = await blob.arrayBuffer()
-//   const buffer = Buffer.from(arrayBuffer)
-//   const rawBase64 = buffer.toString('base64')
-//   const ext = contentType.split("/").pop()
-//   console.log(ext)
-//   const base64 = `data:image/${ext};base64,${rawBase64}`
-//   console.log(base64)
-// }
-
 const functionMap = new Map<string, Function>([
   [collectDrafts.name, collectDrafts],  // 1
-  [triggerCollectingDetails.name, triggerCollectingDetails],  // 1-2
   [collectDetails.name, collectDetails],  // 2
   [manageCars.name, manageCars],  // 3
   [syncAndUploadCars.name, syncAndUploadCars],  // 4
-
-  [loginTest.name, loginTest],
-  // [base64Test.name, base64Test],
-  [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],
-  [resetUploadedCarAsFalse.name, resetUploadedCarAsFalse],
-  [removeAllInvalidImageUploadedCars.name, removeAllInvalidImageUploadedCars],
-  [removeInvalidImageUploadedCars.name, removeInvalidImageUploadedCars],
   [collectCategory.name, collectCategory],
+  [login.name, login],
+  // [resetAllUploadedCarAsFalse.name, resetAllUploadedCarAsFalse],
+  // [resetUploadedCarAsFalse.name, resetUploadedCarAsFalse],
+  // [removeAllInvalidImageUploadedCars.name, removeAllInvalidImageUploadedCars],
+  // [removeInvalidImageUploadedCars.name, removeInvalidImageUploadedCars],
 ])
 
 const fc = functionMap.get(process.argv[2])
