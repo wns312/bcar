@@ -27,11 +27,11 @@ export class CarUploadService {
     page: Page, {id, pw}: Account, { loginUrlRedirectRegister, registerUrl }: RegionUrl, chunkCars: UploadSource[]
   ) {
     await PageInitializer.loginKcr(page, loginUrlRedirectRegister, id, pw)
-    const [comment, margin] = await Promise.all([
+    const [comment, marginMap] = await Promise.all([
       this.sheetClient.getComment(),
       this.sheetClient.getMargin(),
     ])
-    const carUploader = new CarUploader(page, id, comment, margin, registerUrl, chunkCars)
+    const carUploader = new CarUploader(page, id, comment, marginMap, registerUrl, chunkCars)
     await carUploader.uploadCars()
     const { succeededSources, failedSources } = carUploader
     if (!succeededSources.length) {

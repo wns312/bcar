@@ -2,7 +2,9 @@
 import { google, sheets_v4 } from "googleapis"
 import { envs } from "../../configs"
 import { ResponseError } from "../../errors"
-import { Account, RegionUrl } from "../../entities"
+import { Account, Margin, RegionUrl } from "../../entities"
+import { Origin } from "../../types"
+
 
 export class SheetClient {
   static spreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
@@ -22,6 +24,7 @@ export class SheetClient {
   accounts: Account[] = []
   regionUrls: RegionUrl[] = []
   margin: number = -1
+  marginMap: Map<Origin, Margin[]> | undefined
   comment: string = ""
 
   constructor(email: string, key: string) {
@@ -44,7 +47,7 @@ export class SheetClient {
   }
 
   get marginRange() {
-    return `${SheetClient.marginSheetName}!A1:A1`
+    return `${SheetClient.marginSheetName}!A4:C`
   }
 
   get commentRange() {
@@ -52,22 +55,28 @@ export class SheetClient {
   }
 
   async getMargin() {
-    if (this.margin !== -1) {
-      return this.margin
+    if (this.marginMap) {
+      return this.marginMap!
     }
     const response = await this.sheets.spreadsheets.values.get({
       spreadsheetId: SheetClient.spreadsheetId,
       range: this.marginRange,
-    });
+    })
     if (response.status != 200) {
       console.error(response);
       throw new ResponseError(response.statusText)
     }
 
     const values = response.data.values as string[][]
-    const value = values[0][0]
-    this.margin = parseInt(value)
-    return this.margin
+    this.marginMap = new Map<Origin, Margin[]>([
+      [Origin.Domestic, values.map(([priceRange, price, _])=> new Margin(
+        parseInt(priceRange.split('-')[1]), parseInt(price)
+      ))],
+      [Origin.Imported, values.map(([priceRange, _, price])=> new Margin(
+        parseInt(priceRange.split('-')[1]), parseInt(price)
+      ))]
+    ])
+    return this.marginMap!
   }
 
   async getComment() {
