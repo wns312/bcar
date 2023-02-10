@@ -7,8 +7,7 @@
     "start": "docker compose exec crawler node /app/dist/src/index.js",
     "start:local": "set -a && source env/.env && set +a && node dist/src/index.js",
     "build": "tsc && docker compose build",
-    "container": "docker compose up -d",
-    "deploy:job:definition": "set -a && source env/.env && set +a && node dist/src/aws/JobDefinitionDeployer.js"
+    "container": "docker compose up -d"
   },
   "keywords": [],
   "author": "",
