@@ -37,7 +37,7 @@ export class UploadedCarRemoveService {
   }
 
   async removeById(id: string) {
-    const { account, regionUrl } = await this.sheetClient.getAccountAndRegionUrl(id)
+    const { account, regionUrl } = await this.sheetClient.getAccountAndRegionUrlById(id)
     console.log(id)
     const page = await PageInitializer.createPage()
     page.on("dialog", async (dialog)=>{

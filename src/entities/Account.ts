@@ -3,10 +3,7 @@ interface IAccount {
   id: string
   pw: string
   region: string
-  isTestAccount: boolean
-  isErrorOccured: boolean
-  logStreamUrl: string
-  errorContent: string
+  uploadAmount: number
 }
 
 export class Account {
@@ -18,9 +15,5 @@ export class Account {
   id!: string
   pw!: string
   region!: string
-  isTestAccount!: boolean
-  isErrorOccured!: boolean
-  logStreamUrl!: string
-  errorContent!: string
-
+  uploadAmount!: number
 }

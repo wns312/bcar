@@ -5,7 +5,6 @@ import { CarClassifier, CategoryInitializer, chunk } from "../utils"
 
 export class CarAssignService {
 
-  static ACCOUNT_MAX_COUNT = 200
   static IMPORT_MAX_COUNT = 20
   static LARGE_TRUCK_MAX_COUNT = 20
   static BONGO_PORTER_MAX_COUNT = 30
@@ -139,7 +138,7 @@ export class CarAssignService {
     for (const account of accounts) {
       const accountUploadCars = await this.dynamoUploadedCarClient.queryById(account.id)
       const accountUploadedCarNumbers = accountUploadCars.map(car=>car.carNumber)
-      accountAssignAmountMap.set(account.id, CarAssignService.ACCOUNT_MAX_COUNT - accountUploadedCarNumbers.length)
+      accountAssignAmountMap.set(account.id, account.uploadAmount - accountUploadedCarNumbers.length)
       if (!accountUploadedCarNumbers.length) continue
       const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountUploadedCarNumbers)
       const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
@@ -194,7 +193,7 @@ export class CarAssignService {
     console.log("=============================================================")
 
     for (const [region, accounts] of accountRegionMap) {
-      const totalAmountShouldAssign = accounts.length * CarAssignService.ACCOUNT_MAX_COUNT
+      const totalAmountShouldAssign = accounts.reduce((total, account)=> total + account.uploadAmount, 0)
       const { regionSources } = await this.queryRegionSources(segmentMap, companyMap, accounts)
 
       // 현재 실제 할당된 카테고리별 개수
@@ -352,7 +351,7 @@ export class CarAssignService {
         accountAssignAmountMap,
       } = await this.queryRegionSources(segmentMap, companyMap, accounts)
 
-      const totalAmountShouldAssign = accounts.length * CarAssignService.ACCOUNT_MAX_COUNT
+      const totalAmountShouldAssign = accounts.reduce((total, account)=> total + account.uploadAmount, 0)
       let assignableAmount = totalAmountShouldAssign - regionSources.length
 
       console.log(`${region} 지역에 할당되어야 할 차량의 총량: ${totalAmountShouldAssign}`)

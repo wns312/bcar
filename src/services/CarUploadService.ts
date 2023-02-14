@@ -54,7 +54,7 @@ export class CarUploadService {
     const [cars, { segmentMap, companyMap }, { account, regionUrl }] = await Promise.all([
       this.getUserCars(id),
       this.categoryInitializer.initializeMaps(),
-      this.sheetClient.getAccountAndRegionUrl(id)
+      this.sheetClient.getAccountAndRegionUrlById(id)
     ])
     if (!cars.length) {
       console.log("Nothing to upload. end execution", id)

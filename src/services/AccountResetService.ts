@@ -39,7 +39,7 @@ export class AccountResetService {
   }
 
   async resetById(id: string) {
-    const { account, regionUrl } = await this.sheetClient.getAccountAndRegionUrl(id)
+    const { account, regionUrl } = await this.sheetClient.getAccountAndRegionUrlById(id)
 
     const page = await PageInitializer.createPage()
     page.on("dialog", async (dialog)=>{

@@ -12,7 +12,7 @@ export class UploadedCarSyncService {
   async syncCarsById(id: string) {
     const [cars, { account, regionUrl }] = await Promise.all([
       this.dynamoUploadedCarClient.queryById(id),
-      this.sheetClient.getAccountAndRegionUrl(id)
+      this.sheetClient.getAccountAndRegionUrlById(id)
     ])
 
     const { loginUrlRedirectManage, manageUrl } = regionUrl
