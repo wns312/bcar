@@ -3,7 +3,11 @@ interface IAccount {
   id: string
   pw: string
   region: string
-  uploadAmount: number
+  totalAmount: number
+  bongoPorterAmount: number
+  importedAmount: number
+  largeTruckAmount: number
+  domesticAmount: number
 }
 
 export class Account {
@@ -15,5 +19,9 @@ export class Account {
   id!: string
   pw!: string
   region!: string
-  uploadAmount!: number
+  totalAmount!: number
+  bongoPorterAmount!: number
+  importedAmount!: number
+  largeTruckAmount!: number
+  domesticAmount!: number
 }
