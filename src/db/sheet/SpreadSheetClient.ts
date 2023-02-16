@@ -11,7 +11,7 @@ export class SheetClient {
 
   static accountSheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
   static accountRangeStart = "A3"
-  static accountRangeEnd = "F"
+  static accountRangeEnd = "I"
 
   static regionSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
   static regionRangeStart = "A3"
@@ -111,15 +111,16 @@ export class SheetClient {
     const values = response.data.values as string[][]
     const accountRawList = values?.splice(1)
     this.accounts = accountRawList.map(
-      ([index, id, pw, region, isTestAccount, isErrorOccured, logStreamUrl, errorContent]) => new Account({
+      ([index, id, pw, region, ta, bpa, ia, lta, da]) => new Account({
         index: parseInt(index),
         id,
         pw,
         region,
-        isTestAccount: isTestAccount == "TRUE" ? true : false,
-        isErrorOccured: isErrorOccured == "TRUE" ? true : false,
-        logStreamUrl: logStreamUrl,
-        errorContent: errorContent,
+        totalAmount: parseInt(ta),
+        bongoPorterAmount: parseInt(bpa),
+        importedAmount: parseInt(ia),
+        largeTruckAmount: parseInt(lta),
+        domesticAmount: parseInt(da),
       })
     )
     return this.accounts
@@ -173,7 +174,7 @@ export class SheetClient {
     return new Map<string, RegionUrl>(regionsUrls.map(regionsUrl=>[regionsUrl.region, regionsUrl]))
   }
 
-  async getAccountAndRegionUrl(id: string) {
+  async getAccountAndRegionUrlById(id: string) {
     const [accountMap, regionUrlMap] = await Promise.all([
       this.getAccountIdMap(),
       this.getRegionUrlMap(),
@@ -189,16 +190,15 @@ export class SheetClient {
     return { account, regionUrl }
   }
 
-  async getTestAccountAndRegionUrl() {
+  async getAccountAndRegionUrl() {
     const [accounts, regionUrlMap] = await Promise.all([
       this.getAccounts(),
       this.getRegionUrlMap(),
     ])
-    const testAccounts = accounts.filter(account=>account.isTestAccount)
-    if (!testAccounts.length) {
+    if (!accounts.length) {
       throw new Error("Cannot find account")
     }
-    const account = testAccounts[0]
+    const account = accounts[0]
     const regionUrl = regionUrlMap.get(account.region)
     if (!regionUrl) {
       throw new Error("Cannot find regionUrl")

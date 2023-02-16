@@ -1,12 +1,11 @@
 import { Page, ProtocolError } from "puppeteer"
-import { Base64Image, Origin, UploadSource } from "../types"
-import { Margin } from '../entities'
+import { Base64Image, CarBase, DetailModel, Model, Origin, UploadSource } from "../types"
+import { Car, Margin } from '../entities'
 
 export class CarUploaderSelector {
   private constructor() { }
 
   static formBase = "#post-form > table:nth-child(10) > tbody > tr"
-  // static registerPageWaitSelector = "#post-form > div:nth-child(19) > div.photo_view.clearfix > div > span.custom-button-box > label:nth-child(1)"
 
   // Car Categorize related
   static originSelectorBase =  CarUploaderSelector.formBase + ":nth-child(2) > td > p > label"
@@ -298,6 +297,26 @@ export class CarUploader {
     return carImgList.length ? Promise.all(carImgList.map(url=>CarUploader.convertImageIntoBase64(url))) : []
   }
 
+  private getMargin(source: UploadSource) {
+    const margins = this.marginMap.get(source.origin)!
+    let carMargin = 0
+    for (const { maxPrice, margin } of margins) {
+      if (source.car.price <= maxPrice) {
+        carMargin = margin
+        break
+      }
+    }
+    if (!carMargin) {
+      console.error(source.origin)
+      console.error(source.car.price)
+      console.error(margins)
+      console.error(carMargin)
+      throw new Error("Margin error")
+    }
+    console.log(`Margin : ${carMargin}`)
+    return carMargin
+  }
+
 
 
   async uploadImages(base64ImgList: Base64Image[]) {
@@ -356,60 +375,78 @@ export class CarUploader {
       await carColorInput!.type("-")
     }
 
-    // 차량 설명
-    const description = await this.page.waitForSelector(CarUploaderSelector.descriptionSelector)
-    await description!.type(this.comment)
+    // carNumber: 차량번호 / mileage: 주행거리 / displacement: 배기량
+    // price: 가격 / description: 차량 설명 / presentationNumber: 제시번호
 
-    // 제시번호
-    const presentationNumber = await this.page.waitForSelector(CarUploaderSelector.presentationNumberSelector)
-    await presentationNumber!.type(car.presentationNumber)
-
-    // carNumber: 차량번호 / mileage: 주행거리 / displacement: 배기량 / price: 가격
-    const margins = this.marginMap.get(origin)!
-    let carMargin = 0
-    for (const { maxPrice, margin } of margins) {
-      if (car.price <= maxPrice) {
-        carMargin = margin
-        break
-      }
-    }
-    if (!carMargin) {
-      console.error(source.origin)
-      console.error(source.car.price)
-      console.error(margins)
-      console.error(carMargin)
-      throw new Error("Margin error")
-    }
-    console.log(`Margin : ${carMargin}`)
+    // 얘는 이 단계에 있지 않는 것이 옳음
+    const carMargin = this.getMargin(source)
 
     const evaluateInputList = [
       {
-        selector: CarUploaderSelector.carNumberInputSelector,
+        selector: "#post-form > table:nth-child(10) > tbody > tr:nth-child(17) > td > input",
+        value: car.presentationNumber,
+      },
+      {
+        selector: "#post-form > table:nth-child(10) > tbody > tr:nth-child(7) > td > input",
         value: car.carNumber,
       },
       {
-        selector: CarUploaderSelector.mileageInputSelector,
-        value: car.mileage,
+        selector: "#post-form > table:nth-child(10) > tbody > tr:nth-child(9) > td > input",
+        value: car.mileage.toString(),
       },
       {
-        selector: CarUploaderSelector.displacementInputSelector,
-        value: car.displacement,
+        selector: "#post-form > table:nth-child(10) > tbody > tr:nth-child(11) > td > input",
+        value: car.displacement.toString(),
       },
       {
-        selector: CarUploaderSelector.priceInputSelector,
+        selector: "#post-form > table:nth-child(10) > tbody > tr:nth-child(19) > td > input",
         value: (car.price + carMargin).toString(),
+      },
+      {
+        selector: "#post-form > div.description > textarea",
+        value: this.comment,
       }
     ]
 
     await this.page.evaluate(list=>{
       list.forEach(({ selector, value })=>{
-        const input = document.querySelector(selector)
+        const input: HTMLTextAreaElement | HTMLInputElement = document.querySelector(selector)!
         if (!input) {
           throw new Error("No proper selector")
         }
-        input.setAttribute('value', value.toString())
+        input.value = value
       })
     }, evaluateInputList)
+  }
+
+  async categorizeModel(carModel: CarBase | undefined, origin: Origin) {
+    if (!carModel && (origin === Origin.Domestic)) {
+      await this.page.waitForSelector(CarUploaderSelector.modelBase)
+      const liList = await this.page.$$(CarUploaderSelector.modelBase)
+      const etcLi = liList[liList.length-1]
+      await etcLi.click()
+    }
+    if (!carModel) {
+      return false
+    }
+
+    const modelSelector = CarUploaderSelector.modelDataValueBase + carModel?.dataValue
+    await this.page.waitForSelector(modelSelector)
+    await this.page.click(modelSelector)
+
+    return true
+  }
+
+  async categorizeDetailModel(carDetailModel: CarBase | undefined) {
+    if (!carDetailModel) {
+      return false
+    }
+
+    const detailModelSelector = CarUploaderSelector.detailModelDataValueBase + carDetailModel.dataValue
+    await this.page.waitForSelector(detailModelSelector)
+    await this.page.click(detailModelSelector)
+
+    return true
   }
 
   async categorizeCar(source: UploadSource) {
@@ -431,35 +468,17 @@ export class CarUploader {
       await this.page.click(companySelector)
     }
 
-    if (!carModel) {
-      if (origin === Origin.Domestic) {
-        await this.page.waitForSelector(CarUploaderSelector.modelBase)
-        const liList = await this.page.$$(CarUploaderSelector.modelBase)
-        const etcLi = liList[liList.length-1]
-        await etcLi.click()
-      }
-      const carTitleInput = await this.page.waitForSelector(CarUploaderSelector.modelNameInputSelector)
-      if (carTitleInput) {
-        await carTitleInput.type(car.title)
-      }
+    const categorizeModelResult = await this.categorizeModel(carModel, origin)
+    const categorizeDetailModelResult = await this.categorizeDetailModel(carDetailModel)
+
+    if (categorizeModelResult && categorizeDetailModelResult) {
       return
     }
 
-    const modelSelector = CarUploaderSelector.modelDataValueBase + carModel?.dataValue
-    await this.page.waitForSelector(modelSelector)
-    await this.page.click(modelSelector)
-
-    if (!carDetailModel) {
-      const carTitleInput = await this.page.waitForSelector(CarUploaderSelector.modelNameInputSelector)
-      if (carTitleInput) {
-        await carTitleInput.type(car.title)
-      }
-      return
-    }
-
-    const detailModelSelector = CarUploaderSelector.detailModelDataValueBase + carDetailModel.dataValue
-    await this.page.waitForSelector(detailModelSelector)
-    await this.page.click(detailModelSelector)
+    await this.page.evaluate(title => {
+      const input: HTMLInputElement = document.querySelector("#model-name-display > input")!
+      input.value = title
+    }, car.title)
   }
 
   async uploadCar(source: UploadSource) {

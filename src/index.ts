@@ -164,7 +164,7 @@ async function login() {
     throw new Error("No id env");
   }
 
-  const { account, regionUrl } = await sheetClient.getAccountAndRegionUrl(id)
+  const { account, regionUrl } = await sheetClient.getAccountAndRegionUrlById(id)
   const { loginUrlRedirectManage } = regionUrl
   const page = await PageInitializer.createPage()
   await PageInitializer.loginKcr(page, loginUrlRedirectManage, account.id, account.pw)

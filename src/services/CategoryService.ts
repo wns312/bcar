@@ -23,7 +23,7 @@ export class CategoryService {
   }
 
   async collectCategoryInfo() {
-    const { account, regionUrl } = await this.sheetClient.getTestAccountAndRegionUrl()
+    const { account, regionUrl } = await this.sheetClient.getAccountAndRegionUrl()
     const result = await this.collect(account, regionUrl)
     if (!result) {
       return
