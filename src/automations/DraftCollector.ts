@@ -1,5 +1,6 @@
 import { Page } from "puppeteer"
 import { DraftCar } from "../entities"
+import { RangeChunk } from "../types"
 import { PageInitializer, rangeChunk } from "../utils"
 
 export class DraftCollector {
@@ -9,7 +10,9 @@ export class DraftCollector {
     private pw: string,
     private loginUrl: string,
     private manageUrl: string,
-    private sourceSearchBase: string
+    private sourceSearchBase: string,
+    private sourceSearchTruckBase: string,
+    private sourceSearchBusBase: string,
   ) {}
 
   private async waitForSearchList(page: Page) {
@@ -22,31 +25,72 @@ export class DraftCollector {
     await page.waitForSelector('#searchList');
   }
 
-  private async setPrice(page: Page, minPrice?: number, maxPrice?: number) {
-    let url = `${this.manageUrl}?searchChecker=1&mode=&pageSize=100`
+  private async setTruckPrice(page: Page, minPrice?: number, maxPrice?: number) {
+    let url = `${this.manageUrl}?searchChecker=1&mode=&pageSize=100&c_cho=3`
     if (minPrice) url += `&c_price1=${minPrice}`
     if (maxPrice) url += `&c_price2=${maxPrice}`
     await page.goto(url, {waitUntil: "networkidle2"})
     await this.waitForSearchList(page)
   }
 
+  private async setBusPrice(page: Page, minPrice?: number, maxPrice?: number) {
+    let url = `${this.manageUrl}?searchChecker=1&mode=&pageSize=100&c_cho=4`
+    if (minPrice) url += `&c_price1=${minPrice}`
+    if (maxPrice) url += `&c_price2=${maxPrice}`
+    await page.goto(url, {waitUntil: "networkidle2"})
+    await this.waitForSearchList(page)
+  }
+
+  private async setPrice(page: Page, minPrice?: number, maxPrice?: number) {
+    let url = `${this.manageUrl}?searchChecker=1&mode=&pageSize=100&c_cho=0`
+    if (minPrice) url += `&c_price1=${minPrice}`
+    if (maxPrice) url += `&c_price2=${maxPrice}`
+    await page.goto(url, {waitUntil: "networkidle2"})
+    await this.waitForSearchList(page)
+  }
+
+  // 여기서 화물과 버스 page도 가져올 것
   private async collectPageAmount() {
     const page = await PageInitializer.createPage()
     try {
 
       await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
-      await this.setPrice(page, 0, 2000)
+      await this.setPrice(page, 100, 2500)
       const rawCarAmount = await page.$eval('#sellOpenCarCount', (ele) => {
         if (!ele.textContent) throw new Error("text is Empty")
         return ele.textContent!
       })
+      await this.setTruckPrice(page, 100, 4000)
+      const rawTruckAmount = await page.$eval('#sellOpenCarCount', (ele) => {
+        if (!ele.textContent) throw new Error("text is Empty")
+        return ele.textContent!
+      })
+      await this.setBusPrice(page, 100, 4000)
+      const rawBusAmount = await page.$eval('#sellOpenCarCount', (ele) => {
+        if (!ele.textContent) throw new Error("text is Empty")
+        return ele.textContent!
+      })
       const carAmount = parseInt(rawCarAmount.replaceAll(",", ""))
-      const pageAmount = Math.ceil(carAmount / 100) + 1
-      console.log("Total page:", pageAmount, "/ Total car amount :", carAmount)
+      const truckAmount = parseInt(rawTruckAmount.replaceAll(",", ""))
+      const busAmount = parseInt(rawBusAmount.replaceAll(",", ""))
+
+      const carPageAmount = Math.ceil(carAmount / 100) + 1
+      const truckPageAmount = Math.ceil(truckAmount / 100) + 1
+      const busPageAmount = Math.ceil(busAmount / 100) + 1
+      console.log(
+        "Total page:", carPageAmount,
+        "/ Total car amount :", carAmount,
+        "/ Total truck amount :", truckAmount,
+        "/ Total bus amount :", busAmount,
+      )
 
     return {
       carAmount,
-      pageAmount,
+      truckAmount,
+      busAmount,
+      carPageAmount,
+      truckPageAmount,
+      busPageAmount,
     }
     } catch (error) {
       throw error
@@ -55,7 +99,7 @@ export class DraftCollector {
     }
   }
 
-  private async collectRange(page: Page, startPage: number, endPage: number) {
+  private async collectRange(page: Page, sourceSearchBase: string, startPage: number, endPage: number) {
     let rawDraftCars: DraftCar[] = []
     for (let pageNumber = startPage; pageNumber < endPage; pageNumber++) {
       console.log(`Page : ${pageNumber} / ${endPage} (${rawDraftCars.length})`)
@@ -88,39 +132,70 @@ export class DraftCollector {
               price: parseInt(price),
           }
         })
-      }, this.sourceSearchBase, pageNumber)
+      }, sourceSearchBase, pageNumber)
       rawDraftCars = [...rawDraftCars, ...rawDrafts.map(draft=>new DraftCar(draft))]
     }
     return rawDraftCars
   }
 
+  async collect(ranges: RangeChunk[], searchBase: string) {
+    const promises = ranges.map(async ({start, end})=> {
+      const page = await PageInitializer.createPage()
+      try {
+        await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
+        const draftCarsChunk = await this.collectRange(page, searchBase, start, end)
+        return draftCarsChunk
+      } catch (error) {
+        throw error
+      } finally {
+        await PageInitializer.closePage(page)
+      }
+    })
+    const nestedDrafts = await Promise.all(promises)
+    return nestedDrafts.flat()
+  }
+
 
   async collectDraftCars() {
-    const { pageAmount, carAmount } = await this.collectPageAmount()
-    const ranges = rangeChunk(pageAmount, 40)
+    const {
+      carAmount,
+      truckAmount,
+      busAmount,
+      carPageAmount,
+      truckPageAmount,
+      busPageAmount
+    } = await this.collectPageAmount()
+    console.log(truckPageAmount, busPageAmount )
+
+    const ranges = rangeChunk(carPageAmount, 55)
+    const truckRanges = rangeChunk(truckPageAmount, 10)
+    const busRanges = rangeChunk(busPageAmount, 40)
 
     try {
-      const results = await Promise.all(
-        ranges.map(async ({start, end})=> {
-          const page = await PageInitializer.createPage()
-          try {
-            await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
-            const draftCarsChunk = await this.collectRange(page, start, end)
-            return draftCarsChunk
-          } catch (error) {
-            throw error
-          } finally {
-            await PageInitializer.closePage(page)
-          }
-        })
-      )
-      const draftCars = results.flat()
-      const setSize = new Set<string>(draftCars.map(car=>car.carNumber)).size
-      if (setSize !== carAmount) {
-        throw new Error(`Crawled amount is not correct: ${setSize} / ${carAmount}`)
+      const [draftTrucks, draftBuses] = await Promise.all([
+        this.collect(truckRanges, this.sourceSearchTruckBase),
+        this.collect(busRanges, this.sourceSearchBusBase)
+      ])
+
+      const busSetSize = new Set<string>(draftBuses.map(car=>car.carNumber)).size
+      const truckSetSize = new Set<string>(draftTrucks.map(car=>car.carNumber)).size
+      console.log(`Total ${busSetSize} / ${busAmount} cars collected`)
+      console.log(`Total ${truckSetSize} / ${truckAmount} cars collected`)
+      if (busSetSize !== busAmount) {
+        throw new Error(`Crawled amount is not correct: ${busSetSize} / ${busAmount}`)
       }
-      console.log(`Total ${setSize} / ${carAmount} cars collected`)
-      return draftCars
+      if (truckSetSize !== truckAmount) {
+        throw new Error(`Crawled amount is not correct: ${truckSetSize} / ${truckAmount}`)
+      }
+
+      const draftCars = await this.collect(ranges, this.sourceSearchBase)
+      const carSetSize = new Set<string>(draftCars.map(car=>car.carNumber)).size
+      console.log(`Total ${carSetSize} / ${carAmount} cars collected`)
+      if (carSetSize !== carAmount) {
+        throw new Error(`Crawled amount is not correct: ${carSetSize} / ${carAmount}`)
+      }
+
+      return Array.from(new Set([...draftCars, ...draftTrucks, ...draftBuses]).values())
     } catch (error) {
       console.error("Crawl list failed")
       throw error

@@ -36,10 +36,20 @@ const {
   SOURCE_LOGIN_PAGE,
   SOURCE_MANAGE_PAGE,
   SOURCE_SEARCH_BASE,
+  SOURCE_SEARCH_TRUCK_BASE,
+  SOURCE_SEARCH_BUS_BASE,
 } = envs
 
 // Collectors
-const draftCollector = new DraftCollector(SOURCE_ADMIN_ID, SOURCE_ADMIN_PW, SOURCE_LOGIN_PAGE, SOURCE_MANAGE_PAGE, SOURCE_SEARCH_BASE)
+const draftCollector = new DraftCollector(
+  SOURCE_ADMIN_ID,
+  SOURCE_ADMIN_PW,
+  SOURCE_LOGIN_PAGE,
+  SOURCE_MANAGE_PAGE,
+  SOURCE_SEARCH_BASE,
+  SOURCE_SEARCH_TRUCK_BASE,
+  SOURCE_SEARCH_BUS_BASE,
+  )
 const detailCollector = new DetailCollector()
 const categoryCollector = new CategoryCollector()
 // const accountResetter = new AccountResetter()
