@@ -165,7 +165,7 @@ export class DraftCollector {
       truckPageAmount,
       busPageAmount
     } = await this.collectPageAmount()
-    console.log(truckPageAmount, busPageAmount )
+    console.log("carAmount, truckAmount, busAmount: ", carAmount, truckAmount, busAmount)
 
     const ranges = rangeChunk(carPageAmount, 55)
     const truckRanges = rangeChunk(truckPageAmount, 10)
@@ -176,33 +176,13 @@ export class DraftCollector {
         this.collect(truckRanges, this.sourceSearchTruckBase),
         this.collect(busRanges, this.sourceSearchBusBase)
       ])
-
-      const busSet = new Set<DraftCar>(draftBuses)
-      const truckSet = new Set<DraftCar>(draftTrucks)
-
-      if (busSet.size !== busAmount || truckSet.size !== truckAmount) {
-        console.error("Crawled amount is not correct")
-        console.error(`Bus: ${busSet.size} / ${busAmount}`)
-        console.error(`Truck: ${truckSet.size} / ${truckAmount}`)
-        throw new Error(`Crawled amount is not correct: ${busSet.size} / ${busAmount}`)
-      }
-
       const draftCars = await this.collect(ranges, this.sourceSearchBase)
-      const draftCarSet = new Set<DraftCar>(draftCars)
-      if (draftCarSet.size !== carAmount) {
-        throw new Error(`Crawled amount is not correct: ${draftCarSet.size} / ${carAmount}`)
-      }
-      console.log(`Total ${busSet.size} / ${busAmount} cars collected`)
-      console.log(`Total ${truckSet.size} / ${truckAmount} cars collected`)
-      console.log(`Total ${draftCarSet.size} / ${carAmount} cars collected`)
-
       const draftCarMap = new Map<string, DraftCar>(draftCars.map(car=>[car.carNumber, car]))
-      draftTrucks.forEach(car => {
-        draftCarMap.set(car.carNumber, car)
-      })
-      draftBuses.forEach(car => {
-        draftCarMap.set(car.carNumber, car)
-      })
+      draftTrucks
+        .concat(draftBuses)
+        .forEach(car => {
+          draftCarMap.set(car.carNumber, car)
+        })
       return Array.from(draftCarMap.values())
     } catch (error) {
       console.error("Crawl list failed")
