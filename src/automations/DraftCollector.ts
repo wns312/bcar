@@ -99,7 +99,7 @@ export class DraftCollector {
     }
   }
 
-  private async collectRange(page: Page, sourceSearchBase: string, startPage: number, endPage: number) {
+  private async collectRange(page: Page, sourceSearchBase: string, startPage: number, endPage: number): Promise<DraftCar[]> {
     let rawDraftCars: DraftCar[] = []
     for (let pageNumber = startPage; pageNumber < endPage; pageNumber++) {
       console.log(`Page : ${pageNumber} / ${endPage} (${rawDraftCars.length})`)
@@ -143,8 +143,8 @@ export class DraftCollector {
       const page = await PageInitializer.createPage()
       try {
         await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
-        const draftCarsChunk = await this.collectRange(page, searchBase, start, end)
-        return draftCarsChunk
+        const collectedCars = await this.collectRange(page, searchBase, start, end)
+        return collectedCars
       } catch (error) {
         throw error
       } finally {
@@ -177,25 +177,33 @@ export class DraftCollector {
         this.collect(busRanges, this.sourceSearchBusBase)
       ])
 
-      const busSetSize = new Set<string>(draftBuses.map(car=>car.carNumber)).size
-      const truckSetSize = new Set<string>(draftTrucks.map(car=>car.carNumber)).size
-      console.log(`Total ${busSetSize} / ${busAmount} cars collected`)
-      console.log(`Total ${truckSetSize} / ${truckAmount} cars collected`)
-      if (busSetSize !== busAmount) {
-        throw new Error(`Crawled amount is not correct: ${busSetSize} / ${busAmount}`)
-      }
-      if (truckSetSize !== truckAmount) {
-        throw new Error(`Crawled amount is not correct: ${truckSetSize} / ${truckAmount}`)
+      const busSet = new Set<DraftCar>(draftBuses)
+      const truckSet = new Set<DraftCar>(draftTrucks)
+
+      if (busSet.size !== busAmount || truckSet.size !== truckAmount) {
+        console.error("Crawled amount is not correct")
+        console.error(`Bus: ${busSet.size} / ${busAmount}`)
+        console.error(`Truck: ${truckSet.size} / ${truckAmount}`)
+        throw new Error(`Crawled amount is not correct: ${busSet.size} / ${busAmount}`)
       }
 
       const draftCars = await this.collect(ranges, this.sourceSearchBase)
-      const carSetSize = new Set<string>(draftCars.map(car=>car.carNumber)).size
-      console.log(`Total ${carSetSize} / ${carAmount} cars collected`)
-      if (carSetSize !== carAmount) {
-        throw new Error(`Crawled amount is not correct: ${carSetSize} / ${carAmount}`)
+      const draftCarSet = new Set<DraftCar>(draftCars)
+      if (draftCarSet.size !== carAmount) {
+        throw new Error(`Crawled amount is not correct: ${draftCarSet.size} / ${carAmount}`)
       }
+      console.log(`Total ${busSet.size} / ${busAmount} cars collected`)
+      console.log(`Total ${truckSet.size} / ${truckAmount} cars collected`)
+      console.log(`Total ${draftCarSet.size} / ${carAmount} cars collected`)
 
-      return Array.from(new Set([...draftCars, ...draftTrucks, ...draftBuses]).values())
+      const draftCarMap = new Map<string, DraftCar>(draftCars.map(car=>[car.carNumber, car]))
+      draftTrucks.forEach(car => {
+        draftCarMap.set(car.carNumber, car)
+      })
+      draftBuses.forEach(car => {
+        draftCarMap.set(car.carNumber, car)
+      })
+      return Array.from(draftCarMap.values())
     } catch (error) {
       console.error("Crawl list failed")
       throw error
