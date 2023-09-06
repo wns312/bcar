@@ -96,6 +96,7 @@ async function collectDrafts() {
 // VCPU: 2.0 / MEMORY: 4096
 async function collectDetails() {
   await carCollectService.collectDetails()
+
   const response = await batchClient.submitSyncJob({
     jobName: manageCars.name,
     command: ["node", "/app/dist/src/index.js", manageCars.name],

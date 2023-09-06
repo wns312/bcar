@@ -123,7 +123,8 @@ export class DynamoCarClient {
     })
   }
 
-  batchSaveCar(cars: Car[]) {
+  batchSaveCar(cars: Car[]): Promise<BatchWriteItemCommandOutput[]>  {
+    if (!cars.length) return new Promise((resolve)=>resolve([]))
     const putItems = cars.map(car=>({
       Item: {
         PK: { S: DynamoCarClient.carPK },
@@ -204,7 +205,8 @@ export class DynamoCarClient {
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
   }
 
-  batchDeleteDrafts(cars: DraftCar[]) {
+  batchDeleteDrafts(cars: DraftCar[]): Promise<BatchWriteItemCommandOutput[]> {
+    if (!cars.length) return new Promise((resolve)=>resolve([]))
     const deleteRequestInput = cars.map(car => ({
       Key: {
         PK: { S: DynamoCarClient.draftPK },

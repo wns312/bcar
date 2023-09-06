@@ -129,6 +129,7 @@ export class DynamoBaseClient {
           [tableName]: deleteRequests
         }
       })
+      if (response.$metadata.httpStatusCode !== 200) console.error(response)
       responses.push(response)
     }
     return responses
