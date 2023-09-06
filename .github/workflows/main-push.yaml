@@ -1,9 +1,9 @@
-name: Main
-run-name: 'Main 🚀'
+name: Main Push
+run-name: 'Main Push 🚀'
 on:
   push:
-    # branches:
-    #   - 'main'
+    branches:
+      - 'main'
 
 jobs:
   Serverless-Deploy:
