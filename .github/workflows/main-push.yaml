@@ -1,16 +1,13 @@
-name: Merge
-run-name: 'Merge 🚀'
+name: Main
+run-name: 'Main 🚀'
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - 'main'
-      - 'prod'
 
 jobs:
   Build-Image:
-    if: github.event.pull_request.merged == true
+    # if: github.event.pull_request.merged == true
     runs-on: ubuntu-22.04
     timeout-minutes: 5
 

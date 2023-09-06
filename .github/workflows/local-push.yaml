@@ -1,5 +1,5 @@
-name: Push
-run-name: 'Push 🚀'
+name: Local
+run-name: 'Local 🚀'
 on:
   push:
     branches-ignore:
@@ -7,7 +7,7 @@ on:
 jobs:
   Build-Image:
     runs-on: ubuntu-22.04
-    timeout-minutes: 3
+    timeout-minutes: 5
 
     steps:
       - name: Check out repository code
