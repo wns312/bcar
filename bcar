@@ -36,7 +36,6 @@ case $COMMAND in
       exit 1
     fi
     gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase=$PASSPHRASE env/.env
-    gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase=$PASSPHRASE env/serverless.env
     ;;
   import:env)
     PASSPHRASE=$(cat passphrase)
@@ -46,7 +45,6 @@ case $COMMAND in
       exit 1
     fi
     gpg --batch --yes --decrypt --passphrase=$PASSPHRASE --output env/.env env/.env.gpg
-    gpg --batch --yes --decrypt --passphrase=$PASSPHRASE --output env/serverless.env env/serverless.env.gpg
     ;;
   *)
     echo "Invalid comand '$COMMAND'"
