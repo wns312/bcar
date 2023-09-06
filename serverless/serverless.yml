@@ -1,11 +1,13 @@
 service: trigger
 frameworkVersion: '3'
 
-useDotenv: true
-custom:
-  dotenv:
-    path: ../env/serverless.env
 provider:
+  environment:
+    JOB_DEFINITION_NAME: bcar-job-definition
+    SYNC_JOB_QUEUE_NAME: bcar-job-queue
+    UPLOAD_JOB_QUEUE_NAME: bcar-upload-cars-job-queue
+    REGION: ap-northeast-2
+
   name: aws
   stage: "prod"
   runtime: nodejs16.x
