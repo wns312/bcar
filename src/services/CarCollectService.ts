@@ -37,7 +37,7 @@ export class CarCollectService {
 
   async collectDetails() {
     const draftCars = await this.dynamoCarClient.queryDrafts()
-    if (!draftCars.length) return
+    // if (!draftCars.length) return
     // await this.detailCollector.checkDetailKey(draftCars[0])
     const draftCarChunks = chunk(draftCars, 100)
 

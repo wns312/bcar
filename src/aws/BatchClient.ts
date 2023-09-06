@@ -59,7 +59,11 @@ export class BatchClient {
   }
 
   async submitSyncJob(options: SubmitJobCommandInput) {
-    return this.submitJob(this.syncJobQueue, options)
+    const response = await this.submitJob(this.syncJobQueue, options)
+    if (response.$metadata.httpStatusCode !== 200) {
+      console.error(response)
+    }
+    return response
   }
 
   async submitUploadJob(options: SubmitJobCommandInput) {

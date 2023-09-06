@@ -19,7 +19,7 @@ export async function collectDrafts(event: APIGatewayEvent, context: Context) {
     jobDefinition: envs.JOB_DEFINITION_NAME,
     jobQueue: envs.SYNC_JOB_QUEUE_NAME,
     containerOverrides: {
-      command: ["node","/app/dist/src/index.js", collectDrafts.name],
+      command: ["node","/app/dist/src/apps/DraftCollectorApp.js"],
     },
     retryStrategy: { attempts: 3 },
   }))
@@ -33,7 +33,7 @@ export async function manageCars(event: APIGatewayEvent, context: Context) {
     jobDefinition: envs.JOB_DEFINITION_NAME,
     jobQueue: envs.SYNC_JOB_QUEUE_NAME,
     containerOverrides: {
-      command: ["node","/app/dist/src/index.js",manageCars.name],
+      command: ["node","/app/dist/src/apps/CarManageApp.js"],
       resourceRequirements: [
         { type: "VCPU", value: "1.0" },
         { type: "MEMORY", value: "2048" },
