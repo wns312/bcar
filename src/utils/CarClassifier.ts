@@ -53,10 +53,7 @@ export class CarClassifier {
       throw new Error("carModel does not exist")
     }
 
-    // 잘못된 segment가 차량에 할당된 경우, 우선 임시로 목록에서 제거해버린다.
-    if (carModel.carSegment !== uploadSource.segment.name) {
-      return
-    }
+    if (carModel.carSegment !== uploadSource.segment.name) return
 
     uploadSource.model = {
       name: carModel.name,

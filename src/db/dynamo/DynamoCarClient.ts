@@ -59,7 +59,8 @@ export class DynamoCarClient {
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 
-  async QueryCarsByCarNumbers(carNumbers: string[]) {
+  async QueryCarsByCarNumbers(carNumbers: string[]): Promise<Car[]> {
+    if (!carNumbers.length) return []
     const responses = await this.baseClient.batchGetItems(
       this.tableName,
       ...carNumbers.map(carNumber=>[DynamoCarClient.carPK, DynamoCarClient.carPrefix + carNumber])

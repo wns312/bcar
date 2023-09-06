@@ -1,15 +1,12 @@
-import { SheetClient, DynamoCarClient, DynamoUploadedCarClient } from "../db"
+import { DynamoCarClient, DynamoUploadedCarClient } from "../db"
 import { Account, Car, UploadedCar } from "../entities"
-import { Company, Origin, Segment, UploadSource } from "../types"
-import { CarClassifier, CategoryInitializer, chunk } from "../utils"
+import { Company, Origin, Segment, SourceBundle, UploadSource } from "../types"
+import { CarClassifier } from "../utils"
 
 export class CarAssignService {
-
   constructor(
-    private sheetClient: SheetClient,
     private dynamoCarClient: DynamoCarClient,
     private dynamoUploadedCarClient: DynamoUploadedCarClient,
-    private categoryInitializer: CategoryInitializer,
   ) {}
 
   private async getUnregisteredCars() {
@@ -45,139 +42,108 @@ export class CarAssignService {
     return unregisteredCars
   }
 
-  private filterSources(classifiedSources: UploadSource[]) {
-    // 1. 수입차 200대
-    const importedSources = classifiedSources
-      .filter(source=>source.origin === Origin.Imported)
-
-    // 2. 화물/특장 총 500대 (포터 봉고 300대, 대형화물 200대)
-    const domesticSources = classifiedSources.filter(source=>source.origin === Origin.Domestic)
-    const hksCars = domesticSources.filter(source=>
-      source.company.name === '현대'
-      || source.company.name === '기아'
-      || source.company.name === '삼성'
-    )
-
-    // 2-1. 봉고포터
-    const bongoPorterSources = hksCars.filter(source=>
-      source.car.title.includes('봉고')
-      || source.car.title.includes('포터')
-    )
-    const bongoPorterSourceMap = new Map<string, UploadSource>(
-      bongoPorterSources.map(source=>[source.car.carNumber, source])
-    )
-
-    // 2-2. 대형화물
-    const bigTonCars = domesticSources.filter(source=>
-      source.car.title.includes('톤')
-      && !source.car.title.includes('1톤')
-      && !source.car.title.includes('1.2톤')
-      && !source.car.title.includes('1.4톤')
-    )
-    const hyundaiCars = hksCars.filter(source=>
-      source.car.title.includes('덤프')
-      || source.car.title.includes('마이티')
-      || source.car.title.includes('메가트럭')
-      || source.car.title.includes('에어로')
-      || source.car.title.includes('카운티')
-    )
-    const kiaCars = hksCars.filter(source=>
-      source.car.title.includes('그랜버드')
-      || source.car.title.includes('라이노')
-      || source.car.title.includes('복사')
-      || source.car.title.includes('봉고화물')
-      || source.car.title.includes('세레스')
-      || source.car.title.includes('콤보')
-      || source.car.title.includes('타이탄')
-      || source.car.title.includes('트레이드')
-      || source.car.title.includes('파맥스')
-    )
-
-    const samsungCars = hksCars.filter(source=>source.car.title.includes('르노마스터'))
-    // 봉고(포터)덤프(현대, 기아)의 경우 Big에도 걸리고, 봉고포터에도 걸리므로 봉고 포터에 포함하고
-    // largeTruckSources에서만 제거해준다.
-    const largeTruckSources = Array.from(
-      [...bigTonCars, ...hyundaiCars, ...kiaCars, ...samsungCars].reduce(
-        (map, source)=>map.set(source.car.carNumber, source),
-        new Map<string, UploadSource>()
-      ).values()
-    ).filter(source=>!bongoPorterSourceMap.get(source.car.carNumber))
-
-    // 봉고와 해당 차량을 제거한 domesticCarMap
-    const domesticCarMap = new Map<string, UploadSource>(
-      domesticSources.map(source=>[source.car.carNumber, source])
-    )
-    largeTruckSources.forEach(source => { domesticCarMap.delete(source.car.carNumber) })
-    bongoPorterSources.forEach(source => { domesticCarMap.delete(source.car.carNumber) })
-
+  private categorizeSourcesByPrice(classifiedSources: UploadSource[]) {
+    const [under2000, more2000] = classifiedSources.reduce((list, source)=> {
+      source.car.price < 2000 ? list[0].push(source) : list[1].push(source)
+      return list
+    }, [[], []] as [UploadSource[], UploadSource[]])
     return {
-      importedSources,
-      bongoPorterSources,
-      largeTruckSources,
-      domesticSources: Array.from(domesticCarMap.values())
+      under2000,
+      more2000,
     }
   }
 
-  private async getAccountSources(
-    accountCarNumbers: string[], segmentMap: Map<string, Segment>, companyMap: Map<string, Company>
-  ) {
-    if (!accountCarNumbers.length) return []
+  private categorizeSourcesByKind(classifiedSources: UploadSource[]) {
+    const bongoPorterRegex = /봉고|포터/
+    const bigCarsRegex = /톤|1톤|1.2톤|1.4톤|덤프|마이티|메가트럭|에어로|카운티|그랜버드|라이노|복사|봉고화물|세레스|콤보|타이탄|트레이드|파맥스|르노마스터/
+    const [importedSources, bongoPorterSources, largeTruckSources, domesticSources] = classifiedSources.reduce((list, source)=> {
+      if (source.origin === Origin.Imported) {
+        list[0].push(source)
+      } else {
+        if (bongoPorterRegex.test(source.car.title)) {
+          list[1].push(source)
+        } else if (bigCarsRegex.test(source.car.title)) {
+          list[2].push(source)
+        } else {
+          list[3].push(source)
+        }
+      }
+      return list
+    }, [[], [], [], []] as [UploadSource[], UploadSource[], UploadSource[], UploadSource[]])
 
-    const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountCarNumbers)
-    return new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
+    return { importedSources, bongoPorterSources, largeTruckSources, domesticSources }
   }
 
-  async releaseCars(accounts: Account[], segmentMap: Map<string, Segment>, companyMap: Map<string, Company>) {
-    for (const account of accounts) {
-      const {id, bongoPorterAmount, importedAmount, largeTruckAmount, domesticAmount} = account
-      console.log(id, bongoPorterAmount, importedAmount, largeTruckAmount, domesticAmount)
+  private calculateAssignCars(
+    account: Account,
+    acccountSources: UploadSource[],
+    allSourceBundle: SourceBundle,
+  ) {
+    const {bongoPorterSources, importedSources, largeTruckSources, domesticSources} = allSourceBundle
+    // 추가될 양 계산을 위해 카테고리화 하는것
+    const {
+      bongoPorterSources: ABPSources,
+      importedSources: AISources,
+      largeTruckSources: ALTSources,
+      domesticSources: ADSources,
+    } = this.categorizeSourcesByKind(acccountSources)
 
-      const accountUploadedCars = await this.dynamoUploadedCarClient.queryById(id)
+    // 추가될 양을 계산하는 것.
+    const bongoPorterAddAmount = account.bongoPorterAmount - ABPSources.length
+    const importedAddAmount = account.importedAmount - AISources.length
+    const largeTruckAddAmount = account.largeTruckAmount - ALTSources.length
+    const domesticAddAmount = account.domesticAmount - ADSources.length
+
+    const totalAssignedAmount = ABPSources.length + AISources.length + ALTSources.length + ADSources.length
+    const totalAddAmount = bongoPorterAddAmount + importedAddAmount + largeTruckAddAmount + domesticAddAmount
+
+    console.log(
+      bongoPorterSources.length,
+      importedSources.length,
+      largeTruckSources.length,
+      domesticSources.length,
+    )
+    console.log("할당된 양: ", totalAssignedAmount)
+    console.log("할당될 양: ", totalAddAmount)
+
+    // 계산 후 할당 할 양을 잘라낸다.
+    // 수입차, 화물, 봉고포터
+    const splicedSpecialSources = importedSources.splice(0, account.importedAmount - AISources.length)
+      .concat(largeTruckSources.splice(0, account.largeTruckAmount - ALTSources.length))
+      .concat(bongoPorterSources.splice(0, account.bongoPorterAmount - ABPSources.length))
+      .concat(bongoPorterSources.splice(0, account.bongoPorterAmount - ABPSources.length))
+
+      // 일반국내차량 계산 후 할당될 일반차량과 특수차량을 합침
+    return domesticSources
+      .splice(0, totalAddAmount - splicedSpecialSources.length)
+      .concat(splicedSpecialSources)
+      .map(source=>source.car.carNumber)
+  }
+
+  async releaseExceededCars(accounts: Account[], segmentMap: Map<string, Segment>, companyMap: Map<string, Company>) {
+    for (const account of accounts) {
+      // 차량 할당 개수
+      const accountUploadedCars = await this.dynamoUploadedCarClient.queryById(account.id)
       const accountCarNumbers = accountUploadedCars.map(car=>car.carNumber)
-      if (!accountCarNumbers.length) {
-        console.log("No uploaded cars")
-        console.log("=============================================================")
-        continue
-      }
+      if (!accountCarNumbers.length) continue
+
       const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountCarNumbers)
       const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
+      const { bongoPorterSources, importedSources, largeTruckSources, domesticSources } = this.categorizeSourcesByKind(acccountSources)
 
-      const {
-        bongoPorterSources: accountBongoPorterSources,
-        importedSources: accountImportedSources,
-        largeTruckSources: accountLargeTruckSources,
-        domesticSources: accountDomesticSources,
-      } = this.filterSources(acccountSources)
+      importedSources.splice(0, account.importedAmount)
+      bongoPorterSources.splice(0, account.bongoPorterAmount)
+      largeTruckSources.splice(0, account.largeTruckAmount)
+      domesticSources.splice(0, account.domesticAmount)
 
-      const splicedAccountImportedSources = accountImportedSources.splice(0, importedAmount)
-      const splicedAccountBongoPorterSources = accountBongoPorterSources.splice(0, bongoPorterAmount)
-      const splicedAccountLargeTruckSources = accountLargeTruckSources.splice(0, largeTruckAmount)
-      const splicedAccountDomesticSources = accountDomesticSources.splice(0, domesticAmount)
-
-      console.log(
-        "남을 애들: ",
-        splicedAccountBongoPorterSources.length,
-        splicedAccountImportedSources.length,
-        splicedAccountLargeTruckSources.length,
-        splicedAccountDomesticSources.length,
-      )
-      console.log(
-        "삭제 될 애들: ",
-        accountBongoPorterSources.length,
-        accountImportedSources.length,
-        accountLargeTruckSources.length,
-        accountDomesticSources.length,
-      )
-      console.log("=============================================================")
-
-      const deleteTargetCarNumbers = accountBongoPorterSources
-        .concat(accountImportedSources)
-        .concat(accountLargeTruckSources)
-        .concat(accountDomesticSources)
+      const carNumbersShouldDelete = bongoPorterSources
+        .concat(importedSources)
+        .concat(largeTruckSources)
+        .concat(domesticSources)
         .map(source=>source.car.carNumber)
-      if (!deleteTargetCarNumbers.length) continue
-      console.log("업로드 차량 삭제 진행")
-      const responses = await this.dynamoUploadedCarClient.batchDeleteCarsByCarNumbers(deleteTargetCarNumbers)
+      if (!carNumbersShouldDelete.length) continue
+
+      const responses = await this.dynamoUploadedCarClient.batchDeleteCarsByCarNumbers(carNumbersShouldDelete)
       responses.forEach(r => {
         if (r.$metadata.httpStatusCode !== 200) {
           console.error(r)
@@ -185,102 +151,32 @@ export class CarAssignService {
         }
       })
     }
-    console.log("할당 초과량 삭제 완료")
   }
 
   async assignCars(accounts: Account[], segmentMap: Map<string, Segment>, companyMap: Map<string, Company>) {
     const unregisteredCars = await this.getUnregisteredCars()
     const unregisteredSources = new CarClassifier(unregisteredCars, segmentMap, companyMap).classifyAll()
-    const {
-      bongoPorterSources,
-      importedSources,
-      largeTruckSources,
-      domesticSources,
-    } = this.filterSources(unregisteredSources)
+    const sourceBundle = this.categorizeSourcesByKind(unregisteredSources)
 
-    for (const {id, totalAmount, bongoPorterAmount, importedAmount, largeTruckAmount, domesticAmount} of accounts) {
-      const accountUploadedCars = await this.dynamoUploadedCarClient.queryById(id)
-      const accountCarNumbers = accountUploadedCars.map(car=>car.carNumber)
-      const acccountSources = await this.getAccountSources(accountCarNumbers, segmentMap, companyMap)
+    for (const account of accounts) {
+      const accountUploadedCars = await this.dynamoUploadedCarClient.queryById(account.id)
+      const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountUploadedCars.map(car=>car.carNumber))
+      const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
+      const carNumbersShouldAssigned = this.calculateAssignCars(account, acccountSources, sourceBundle)
 
-      const {
-        bongoPorterSources: accountBongoPorterSources,
-        importedSources: accountImportedSources,
-        largeTruckSources: accountLargeTruckSources,
-        domesticSources: accountDomesticSources,
-      } = this.filterSources(acccountSources)
-
-      const assignableBongoPorterAmount = bongoPorterAmount - accountBongoPorterSources.length
-      const assignableimportedAmount = importedAmount - accountImportedSources.length
-      const assignablelargeTruckAmount = largeTruckAmount - accountLargeTruckSources.length
-      const assignableDomesticCarAmount = domesticAmount - accountDomesticSources.length
-
-      console.log(
-        bongoPorterSources.length,
-        importedSources.length,
-        largeTruckSources.length,
-        domesticSources.length,
-      )
-      console.log(id, bongoPorterAmount, importedAmount, largeTruckAmount, domesticAmount)
-      console.log(
-        "할당된 양: ",
-        accountBongoPorterSources.length,
-        accountImportedSources.length,
-        accountLargeTruckSources.length,
-        accountDomesticSources.length,
-      )
-      console.log(
-        "할당될 양: ",
-        assignableBongoPorterAmount,
-        assignableimportedAmount,
-        assignablelargeTruckAmount,
-        assignableDomesticCarAmount
-      )
-
-      const splicedSpecialSources = importedSources.splice(0, importedAmount - accountImportedSources.length)
-        .concat(largeTruckSources.splice(0, largeTruckAmount - accountLargeTruckSources.length))
-        .concat(bongoPorterSources.splice(0, bongoPorterAmount - accountBongoPorterSources.length))
-
-      const splicedDomesticSources = domesticSources.splice(
-        0,
-        assignableBongoPorterAmount
-        + assignableimportedAmount
-        + assignablelargeTruckAmount
-        + assignableDomesticCarAmount
-        - splicedSpecialSources.length
-      )
-      const assignCarNumbers = splicedSpecialSources
-        .concat(splicedDomesticSources)
-        .map(source=>source.car.carNumber)
-      console.log("할당될 특이 소스: ", splicedSpecialSources.length)
-      console.log("할당될 일반 소스: ", splicedDomesticSources.length)
-      console.log("할당될 총 소스: ", splicedSpecialSources.length + splicedDomesticSources.length)
-      console.log("할당된 뒤의 총 소스: ", acccountSources.length + assignCarNumbers.length)
+      console.log("할당될 총 소스: ", carNumbersShouldAssigned.length)
+      console.log("할당된 뒤의 총 소스: ", acccountSources.length + carNumbersShouldAssigned.length)
       console.log("=====================================")
-      if (totalAmount !== acccountSources.length + assignCarNumbers.length) {
-        throw new Error("Assign Amount Error")
-      }
-      if (!assignCarNumbers.length) continue
+      if (account.totalAmount !== acccountSources.length + carNumbersShouldAssigned.length) throw new Error("Assign Amount Error")
+      if (!carNumbersShouldAssigned.length) continue
 
-      const responses = await this.dynamoUploadedCarClient.batchSaveByCarNumbers(id, assignCarNumbers, false)
+      const responses = await this.dynamoUploadedCarClient.batchSaveByCarNumbers(account.id, carNumbersShouldAssigned, false)
       responses.forEach(response=> {
         if (response.$metadata.httpStatusCode !== 200) {
           console.log(response)
         }
       })
-
     }
     console.log("할당 완료")
-  }
-
-  async assignAll() {
-    const [accountIdMap, { segmentMap, companyMap }] = await Promise.all([
-      this.sheetClient.getAccountIdMap(),
-      this.categoryInitializer.initializeMaps(),
-    ])
-    const accounts = Array.from(accountIdMap.values())
-
-    await this.releaseCars(accounts, segmentMap, companyMap)
-    await this.assignCars(accounts, segmentMap, companyMap)
   }
 }
