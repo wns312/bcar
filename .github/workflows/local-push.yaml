@@ -1,16 +1,11 @@
-name: Merge
-run-name: 'Merge 🚀'
+name: Local Push
+run-name: 'Local Push 🚀'
 on:
-  pull_request:
-    types:
-      - closed
-    branches:
+  push:
+    branches-ignore:
       - 'main'
-      - 'prod'
-
 jobs:
   Build-Image:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-22.04
     timeout-minutes: 5
 
@@ -31,15 +26,18 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-password: 'true'
 
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          tags: ${{ secrets.PRIVATE_REGISTRY_BASE_URL }}/${{ secrets.PRIVATE_REGISTRY_REPOSITORY }}:prod
+          tags: ${{ secrets.PRIVATE_REGISTRY_BASE_URL }}/${{ secrets.PRIVATE_REGISTRY_REPOSITORY }}:local
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
 # 추가적으로 해야할 것
 # register jobdefinition
 

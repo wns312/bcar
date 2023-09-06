@@ -4,8 +4,7 @@
   "description": "BCar update package",
   "main": "dist/index.js",
   "scripts": {
-    "start": "docker compose exec crawler node /app/dist/src/index.js",
-    "start:local": "set -a && source env/.env && set +a && node dist/src/index.js",
+    "start": "tsc --watch",
     "build": "tsc && docker compose build",
     "container": "docker compose up -d"
   },

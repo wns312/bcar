@@ -53,21 +53,20 @@ export class DraftCollector {
   private async collectPageAmount() {
     const page = await PageInitializer.createPage()
     try {
-
       await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
       await this.setPrice(page, 100, 2500)
       const rawCarAmount = await page.$eval('#sellOpenCarCount', (ele) => {
-        if (!ele.textContent) throw new Error("text is Empty")
+        if (!ele.textContent) throw new Error("Text is empty")
         return ele.textContent!
       })
       await this.setTruckPrice(page, 100, 4000)
       const rawTruckAmount = await page.$eval('#sellOpenCarCount', (ele) => {
-        if (!ele.textContent) throw new Error("text is Empty")
+        if (!ele.textContent) throw new Error("Text is empty")
         return ele.textContent!
       })
       await this.setBusPrice(page, 100, 4000)
       const rawBusAmount = await page.$eval('#sellOpenCarCount', (ele) => {
-        if (!ele.textContent) throw new Error("text is Empty")
+        if (!ele.textContent) throw new Error("Text is empty")
         return ele.textContent!
       })
       const carAmount = parseInt(rawCarAmount.replaceAll(",", ""))
@@ -167,23 +166,22 @@ export class DraftCollector {
     } = await this.collectPageAmount()
     console.log("carAmount, truckAmount, busAmount: ", carAmount, truckAmount, busAmount)
 
-    const ranges = rangeChunk(carPageAmount, 55)
-    const truckRanges = rangeChunk(truckPageAmount, 10)
-    const busRanges = rangeChunk(busPageAmount, 40)
+    const ranges = rangeChunk(carPageAmount, 50)
+    const truckRanges = rangeChunk(truckPageAmount, 50)
+    const busRanges = rangeChunk(busPageAmount, 50)
 
     try {
-      const [draftTrucks, draftBuses] = await Promise.all([
-        this.collect(truckRanges, this.sourceSearchTruckBase),
-        this.collect(busRanges, this.sourceSearchBusBase)
-      ])
+      const draftTrucks = await this.collect(truckRanges, this.sourceSearchTruckBase)
+      const draftBuses = await this.collect(busRanges, this.sourceSearchBusBase)
       const draftCars = await this.collect(ranges, this.sourceSearchBase)
       const draftCarMap = new Map<string, DraftCar>(draftCars.map(car=>[car.carNumber, car]))
-      draftTrucks
-        .concat(draftBuses)
-        .forEach(car => {
-          draftCarMap.set(car.carNumber, car)
-        })
+
+      draftTrucks.concat(draftBuses).forEach(car => {
+        draftCarMap.set(car.carNumber, car)
+      })
+
       return Array.from(draftCarMap.values())
+
     } catch (error) {
       console.error("Crawl list failed")
       throw error

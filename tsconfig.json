@@ -4,6 +4,7 @@
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "declaration": true,
+    "experimentalDecorators": true,
     "lib": ["es2021", "DOM"],
     "module": "CommonJS",
     "moduleResolution": "node",
