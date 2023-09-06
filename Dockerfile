@@ -36,5 +36,7 @@ ADD . ./
 
 ENV PATH /app/node_modules/.bin:$PATH
 
+RUN tsc
+
 CMD tsc -watch
 
