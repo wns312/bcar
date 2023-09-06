@@ -4,9 +4,7 @@
   "description": "BCar update package",
   "main": "dist/index.js",
   "scripts": {
-    "start": "tsc --watch",
-    "build": "tsc && docker compose build",
-    "container": "docker compose up -d"
+    "start": "tsc --watch"
   },
   "keywords": [],
   "author": "",
