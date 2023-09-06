@@ -67,7 +67,7 @@ const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, SYNC_JOB_QUEUE_
 
 // Services
 const carCollectService = new CarCollectService(draftCollector, detailCollector, dynamoCarClient)
-const carAssignService = new CarAssignService(sheetClient, dynamoCarClient, dynamoUploadedCarClient, categoryInitializer)
+const carAssignService = new CarAssignService(dynamoCarClient, dynamoUploadedCarClient)
 const uploadedCarSyncService = new UploadedCarSyncService(dynamoUploadedCarClient, sheetClient)
 const carUploadService = new CarUploadService(sheetClient, dynamoCarClient, dynamoUploadedCarClient, categoryInitializer)
 const categoryService = new CategoryService(sheetClient, categoryCollector, dynamoCategoryClient)
@@ -108,9 +108,13 @@ async function collectDetails() {
 
 // VCPU: 1.0 / MEMORY: 2048
 async function manageCars() {
-  await carAssignService.assignAll()
+  const [accounts, { segmentMap, companyMap }] = await Promise.all([
+    sheetClient.getAccounts(),
+    categoryInitializer.initializeMaps(),
+  ])
+  await carAssignService.releaseExceededCars(accounts, segmentMap, companyMap)
+  await carAssignService.assignCars(accounts, segmentMap, companyMap)
 
-  const accounts = await sheetClient.getAccounts()
   for (const account of accounts) {
     const carNumbersNotUploaded = await dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(account.id, false)
     if (!carNumbersNotUploaded.length) {

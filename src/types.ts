@@ -57,3 +57,10 @@ export interface Base64Image {
   base64: string
   ext: string
 }
+
+export interface SourceBundle {
+  bongoPorterSources: UploadSource[]
+  importedSources: UploadSource[]
+  largeTruckSources: UploadSource[]
+  domesticSources: UploadSource[]
+}
