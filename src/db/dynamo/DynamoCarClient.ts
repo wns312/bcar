@@ -1,4 +1,4 @@
-import { AttributeValue, QueryCommandInput } from "@aws-sdk/client-dynamodb";
+import { AttributeValue, BatchWriteItemCommandOutput, QueryCommandInput } from "@aws-sdk/client-dynamodb";
 import { DynamoBaseClient } from "./DynamoBaseClient"
 import { Car, DraftCar } from "../../entities"
 
@@ -86,7 +86,8 @@ export class DynamoCarClient {
     return this.baseClient.queryItems(input)
   }
 
-  batchDeleteCars(cars: Car[]) {
+  batchDeleteCars(cars: Car[]): Promise<BatchWriteItemCommandOutput[]>  {
+    if (!cars.length) return new Promise((resolve)=>resolve([]))
     const deleteRequestInput = cars.map(car => ({
       Key: {
         PK: { S: DynamoCarClient.carPK },
@@ -186,7 +187,8 @@ export class DynamoCarClient {
     })
   }
 
-  batchSaveDraft(cars: DraftCar[]) {
+  batchSaveDraft(cars: DraftCar[]): Promise<BatchWriteItemCommandOutput[]> {
+    if (!cars.length) return new Promise((resolve)=>resolve([]))
     const putItems = cars.map( (car, index) =>({
       Item: {
         PK: { S: DynamoCarClient.draftPK },

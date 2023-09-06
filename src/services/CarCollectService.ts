@@ -22,40 +22,16 @@ export class CarCollectService {
 
   async collectDrafts() {
     const existingDraftCars = await this.dynamoCarClient.queryDrafts()
-    if (existingDraftCars.length) {
-      await this.dynamoCarClient.batchDeleteDrafts(existingDraftCars)
-    }
+    if (existingDraftCars.length) await this.dynamoCarClient.batchDeleteDrafts(existingDraftCars)
 
     const cars = await this.dynamoCarClient.queryCars()
-    console.log("Existing drafts :", existingDraftCars.length);
-    console.log("Existing cars :", cars.length);
-
     const draftCars = await this.draftCollector.collectDraftCars()
 
     const { carsShouldDelete, draftCarShouldCrawl } = this.filterDrafts(draftCars, cars)
 
-    console.log("draftCarShouldCrawl: ", draftCarShouldCrawl.map(draftCar=>draftCar.carNumber))
-    console.log("carsShouldDelete : ", carsShouldDelete.map(car=>car.carNumber))
+    await this.dynamoCarClient.batchSaveDraft(draftCarShouldCrawl)
+    await this.dynamoCarClient.batchDeleteCars(carsShouldDelete)
 
-    if (draftCarShouldCrawl.length) {
-      const draftSaveResponses = await this.dynamoCarClient.batchSaveDraft(draftCarShouldCrawl)
-      console.log("Draft save responses :")
-      draftSaveResponses.forEach(response=> {
-        if (response.$metadata.httpStatusCode !== 200) {
-          console.log(response)
-        }
-      })
-    }
-
-    if (carsShouldDelete.length) {
-      const deleteresponses = await this.dynamoCarClient.batchDeleteCars(carsShouldDelete)
-      console.log("Delete response :")
-      deleteresponses.forEach(response=> {
-        if (response.$metadata.httpStatusCode !== 200) {
-          console.log(response)
-        }
-      })
-    }
     return Boolean(draftCarShouldCrawl.length) || Boolean(carsShouldDelete.length)
   }
 

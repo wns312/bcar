@@ -113,6 +113,7 @@ export class DynamoBaseClient {
           [tableName]: putRequests
         }
       })
+      if (response.$metadata.httpStatusCode !== 200) console.error(response)
       responses.push(response)
     }
     return responses

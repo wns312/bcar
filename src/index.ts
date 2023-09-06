@@ -77,11 +77,11 @@ const categoryService = new CategoryService(sheetClient, categoryCollector, dyna
 // VCPU: 2.0 / MEMORY: 4096
 async function collectDrafts() {
   const shouldTriggerDetail = await carCollectService.collectDrafts()
-  console.log(shouldTriggerDetail)
-
   if (!shouldTriggerDetail) {
     console.log("Nothing cars have been changed. end execution.")
+    return
   }
+
   const response = await batchClient.submitSyncJob({
     jobName: collectDetails.name,
     command: ["node", "/app/dist/src/index.js", collectDetails.name],
