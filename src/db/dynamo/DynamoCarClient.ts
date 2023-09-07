@@ -54,29 +54,6 @@ export class DynamoCarClient {
     }
   }
 
-  rawBatchDelete(items: Record<string, AttributeValue>[]) {
-    const deleteRequestInput = items.map(item => ({
-      Key: { PK: item.PK, SK: item.SK }
-    }))
-    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
-  }
-
-  async queryCarsByCarNumbers(carNumbers: string[]): Promise<Car[]> {
-    if (!carNumbers.length) return []
-    const responses = await this.baseClient.batchGetItems(
-      this.tableName,
-      ...carNumbers.map(carNumber=>[DynamoCarClient.carPK, DynamoCarClient.carPrefix + carNumber])
-    )
-    const records = responses.map(response=>{
-      if (response.$metadata.httpStatusCode !== 200) {
-        console.error(response);
-        throw new Error("Response Error")
-      }
-      return response.Responses![this.tableName]
-    }).flat()
-    return this.convertCars(records)
-  }
-
   async queryAssignedCars() {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
@@ -263,27 +240,6 @@ export class DynamoCarClient {
     }))
   }
 
-  queryDraftWithProjection(projectionExpressions: string[]) {
-    const input = this.createQueryInput(DynamoCarClient.draftPK, projectionExpressions)
-    return this.baseClient.queryItems(input)
-  }
-
-  queryDraftWithRange(start: number, end: number) {
-    return this.baseClient.queryItems({
-      TableName: this.tableName,
-      KeyConditionExpression: `PK = :p`,
-      FilterExpression: "#I BETWEEN :s AND :e",
-      ExpressionAttributeNames: {
-        "#I": "index"
-      },
-      ExpressionAttributeValues: {
-        ":p": { S: DynamoCarClient.draftPK },
-        ":s": { N: start.toString() },
-        ":e": { N: end.toString() },
-      },
-    })
-  }
-
   batchSaveDraft(cars: DraftCar[]): Promise<BatchWriteItemCommandOutput[]> {
     if (!cars.length) return new Promise((resolve)=>resolve([]))
     const putItems = cars.map( (car, index) =>({
@@ -312,3 +268,48 @@ export class DynamoCarClient {
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 }
+
+
+  // rawBatchDelete(items: Record<string, AttributeValue>[]) {
+  //   const deleteRequestInput = items.map(item => ({
+  //     Key: { PK: item.PK, SK: item.SK }
+  //   }))
+  //   return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
+  // }
+
+  // async queryCarsByCarNumbers(carNumbers: string[]): Promise<Car[]> {
+  //   if (!carNumbers.length) return []
+  //   const responses = await this.baseClient.batchGetItems(
+  //     this.tableName,
+  //     ...carNumbers.map(carNumber=>[DynamoCarClient.carPK, DynamoCarClient.carPrefix + carNumber])
+  //   )
+  //   const records = responses.map(response=>{
+  //     if (response.$metadata.httpStatusCode !== 200) {
+  //       console.error(response);
+  //       throw new Error("Response Error")
+  //     }
+  //     return response.Responses![this.tableName]
+  //   }).flat()
+  //   return this.convertCars(records)
+  // }
+
+  // queryDraftWithProjection(projectionExpressions: string[]) {
+  //   const input = this.createQueryInput(DynamoCarClient.draftPK, projectionExpressions)
+  //   return this.baseClient.queryItems(input)
+  // }
+
+  // queryDraftWithRange(start: number, end: number) {
+  //   return this.baseClient.queryItems({
+  //     TableName: this.tableName,
+  //     KeyConditionExpression: `PK = :p`,
+  //     FilterExpression: "#I BETWEEN :s AND :e",
+  //     ExpressionAttributeNames: {
+  //       "#I": "index"
+  //     },
+  //     ExpressionAttributeValues: {
+  //       ":p": { S: DynamoCarClient.draftPK },
+  //       ":s": { N: start.toString() },
+  //       ":e": { N: end.toString() },
+  //     },
+  //   })
+  // }

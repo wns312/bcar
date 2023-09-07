@@ -17,10 +17,9 @@ export class CarAssignApp {
   }
 
   @timer()
-  async manageCars() {
+  async assign() {
     const accounts = await this.sheetClient.getAccounts()
     const { segmentMap, companyMap } = await this.categoryInitializer.initializeMaps()
-
     await this.carAssignService.assignCars(accounts, segmentMap, companyMap)
 
     for (const account of accounts) {
@@ -63,6 +62,6 @@ if (require.main == module) {
     // Category Map Creator
     const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
 
-    await new CarAssignApp(sheetClient, categoryInitializer, dynamoCarClient, batchClient).manageCars()
+    await new CarAssignApp(sheetClient, categoryInitializer, dynamoCarClient, batchClient).assign()
   })()
 }

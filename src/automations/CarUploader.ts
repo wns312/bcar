@@ -505,7 +505,8 @@ export class CarUploader {
         // 에러 메시지: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
         // 에러 메시지: net::ERR_CONNECTION_TIMED_OUT
         if (error instanceof ProtocolError || !(error instanceof Error)) {
-          console.log("Unexpected error: stop execution");
+          console.error(error)
+          console.error("Unexpected error: stop execution")
           return
         }
         console.error("차량 등록에 실패했습니다.")
