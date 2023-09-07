@@ -1,4 +1,4 @@
-import { CarManageApp } from "."
+import { CarAssignApp } from "."
 import { DetailCollector, DraftCollector } from "../automations"
 import { BatchClient } from "../aws"
 import { envs } from "../configs"
@@ -14,7 +14,7 @@ export class DetailCollectorApp {
     await this.carCollectService.collectDetails()
     const response = await this.batchClient.submitSyncJob({
       jobName: "manageCars",
-      command: ["node", `/app/dist/src/apps/${CarManageApp.name}.js`],
+      command: ["node", `/app/dist/src/apps/${CarAssignApp.name}.js`],
       attempts: 3
     })
     console.log(response)

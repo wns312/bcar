@@ -1,4 +1,4 @@
-import { DynamoCarClient, DynamoUploadedCarClient } from "../db"
+import { DynamoCarClient } from "../db"
 import { Account } from "../entities"
 import { Company, Origin, Segment, SourceBundle, UploadSource } from "../types"
 import { CarClassifier } from "../utils"
