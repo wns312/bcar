@@ -1,13 +1,14 @@
 import { Page } from "puppeteer"
+import { Car } from "../entities"
 
 export class CarSynchronizer {
-  existingCarMap: Map<string, boolean>
+  existingCarMap: Map<string, Car>
   constructor(
     private page: Page,
     private manageUrl: string,
-    private existingCarNumbers: string[],
+    existingCars: Car[],
   ) {
-    this.existingCarMap = new Map<string, boolean>(existingCarNumbers.map(carNumber=>[carNumber, true]))
+    this.existingCarMap = new Map<string, Car>(existingCars.map(car=>[car.carNumber, car]))
   }
 
   async getPageLength() {
@@ -15,7 +16,6 @@ export class CarSynchronizer {
     return childTags.length
   }
 
-  // 제대로 로직 짜자... 헷갈린다.
   async deleteExpiredCars() {
     const trTagsSelector = "#_carManagement > table > tbody > tr"
     const tdPhotoSelector = "td.photo > a > span"

@@ -38,6 +38,8 @@ export class DynamoCarClient {
       title: record.title.S!,
       price: parseInt(record.price.N!),
       company: record.company.S!,
+      isUploaded: record.isUploaded.BOOL!,
+      uploader: record.uploader.S!,
     }))
   }
 
@@ -52,26 +54,96 @@ export class DynamoCarClient {
     }
   }
 
-  rawBatchDelete(items: Record<string, AttributeValue>[]) {
-    const deleteRequestInput = items.map(item => ({
-      Key: { PK: item.PK, SK: item.SK }
-    }))
-    return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
+  async queryAssignedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "uploader <> :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":u": { S: "" },
+      },
+    })
+    return this.convertCars(records)
   }
 
-  async QueryCarsByCarNumbers(carNumbers: string[]): Promise<Car[]> {
-    if (!carNumbers.length) return []
-    const responses = await this.baseClient.batchGetItems(
-      this.tableName,
-      ...carNumbers.map(carNumber=>[DynamoCarClient.carPK, DynamoCarClient.carPrefix + carNumber])
-    )
-    const records = responses.map(response=>{
-      if (response.$metadata.httpStatusCode !== 200) {
-        console.error(response);
-        throw new Error("Response Error")
-      }
-      return response.Responses![this.tableName]
-    }).flat()
+  async queryAssignedCarsByUploader(uploader: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "uploader = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":u": { S: uploader },
+      },
+    })
+    return this.convertCars(records)
+  }
+
+  async queryNotAssignedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "uploader = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":u": { S: "" },
+      },
+    })
+    return this.convertCars(records)
+  }
+
+  async queryUploadedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: true },
+      },
+    })
+    return this.convertCars(records)
+  }
+
+  async queryNotUploadedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: false },
+      },
+    })
+    return this.convertCars(records)
+  }
+
+  async queryUploadedCarsByUploader(uploader: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i AND uploader = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: true },
+        ":u": { S: uploader },
+      },
+    })
+    return this.convertCars(records)
+  }
+
+  async queryNotUploadedCarsByUploader(uploader: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i AND uploader = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: false },
+        ":u": { S: uploader },
+      },
+    })
     return this.convertCars(records)
   }
 
@@ -115,9 +187,8 @@ export class DynamoCarClient {
 
     const responses = await this.batchDeleteCarsByCarNumbers(carNumbers)
     responses.forEach(response=>{
-      console.error(response)
       if (response.$metadata.httpStatusCode !== 200) {
-        console.error(response);
+        console.error(response)
         throw new Error("Response Error")
       }
     })
@@ -147,7 +218,9 @@ export class DynamoCarClient {
         hasSeizure: { BOOL: car.hasSeizure },
         hasMortgage: { BOOL: car.hasMortgage },
         carCheckSrc: { S: car.carCheckSrc },
-        images: { L: car.images.map(image=>({S: image})) }
+        images: { L: car.images.map(image=>({S: image})) },
+        uploader: { S: car.uploader },
+        isUploaded: { BOOL: car.isUploaded },
       }
     }))
 
@@ -165,27 +238,6 @@ export class DynamoCarClient {
       detailPageNum: record.detailPageNum.S!,
       price: parseInt(record.price.N!),
     }))
-  }
-
-  queryDraftWithProjection(projectionExpressions: string[]) {
-    const input = this.createQueryInput(DynamoCarClient.draftPK, projectionExpressions)
-    return this.baseClient.queryItems(input)
-  }
-
-  queryDraftWithRange(start: number, end: number) {
-    return this.baseClient.queryItems({
-      TableName: this.tableName,
-      KeyConditionExpression: `PK = :p`,
-      FilterExpression: "#I BETWEEN :s AND :e",
-      ExpressionAttributeNames: {
-        "#I": "index"
-      },
-      ExpressionAttributeValues: {
-        ":p": { S: DynamoCarClient.draftPK },
-        ":s": { N: start.toString() },
-        ":e": { N: end.toString() },
-      },
-    })
   }
 
   batchSaveDraft(cars: DraftCar[]): Promise<BatchWriteItemCommandOutput[]> {
@@ -216,3 +268,48 @@ export class DynamoCarClient {
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 }
+
+
+  // rawBatchDelete(items: Record<string, AttributeValue>[]) {
+  //   const deleteRequestInput = items.map(item => ({
+  //     Key: { PK: item.PK, SK: item.SK }
+  //   }))
+  //   return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
+  // }
+
+  // async queryCarsByCarNumbers(carNumbers: string[]): Promise<Car[]> {
+  //   if (!carNumbers.length) return []
+  //   const responses = await this.baseClient.batchGetItems(
+  //     this.tableName,
+  //     ...carNumbers.map(carNumber=>[DynamoCarClient.carPK, DynamoCarClient.carPrefix + carNumber])
+  //   )
+  //   const records = responses.map(response=>{
+  //     if (response.$metadata.httpStatusCode !== 200) {
+  //       console.error(response);
+  //       throw new Error("Response Error")
+  //     }
+  //     return response.Responses![this.tableName]
+  //   }).flat()
+  //   return this.convertCars(records)
+  // }
+
+  // queryDraftWithProjection(projectionExpressions: string[]) {
+  //   const input = this.createQueryInput(DynamoCarClient.draftPK, projectionExpressions)
+  //   return this.baseClient.queryItems(input)
+  // }
+
+  // queryDraftWithRange(start: number, end: number) {
+  //   return this.baseClient.queryItems({
+  //     TableName: this.tableName,
+  //     KeyConditionExpression: `PK = :p`,
+  //     FilterExpression: "#I BETWEEN :s AND :e",
+  //     ExpressionAttributeNames: {
+  //       "#I": "index"
+  //     },
+  //     ExpressionAttributeValues: {
+  //       ":p": { S: DynamoCarClient.draftPK },
+  //       ":s": { N: start.toString() },
+  //       ":e": { N: end.toString() },
+  //     },
+  //   })
+  // }

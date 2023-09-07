@@ -1,29 +1,29 @@
 import { CarSyncApp } from "."
 import { BatchClient } from "../aws"
 import { envs } from "../configs"
-import { SheetClient, DynamoCarClient, DynamoCategoryClient, DynamoUploadedCarClient } from "../db"
+import { SheetClient, DynamoCarClient, DynamoCategoryClient } from "../db"
 import { CarAssignService } from "../services"
 import { CategoryInitializer, timer } from "../utils"
 
-export class CarManageApp {
+export class CarAssignApp {
+  private carAssignService: CarAssignService
   constructor(
     private sheetClient: SheetClient,
     private categoryInitializer: CategoryInitializer,
-    private carAssignService: CarAssignService,
-    private dynamoUploadedCarClient: DynamoUploadedCarClient,
+    private dynamoCarClient: DynamoCarClient,
     private batchClient: BatchClient,
-  ) {}
+  ) {
+    this.carAssignService = new CarAssignService(dynamoCarClient)
+  }
 
   @timer()
-  async manageCars() {
+  async assign() {
     const accounts = await this.sheetClient.getAccounts()
     const { segmentMap, companyMap } = await this.categoryInitializer.initializeMaps()
-
-    await this.carAssignService.releaseExceededCars(accounts, segmentMap, companyMap)
     await this.carAssignService.assignCars(accounts, segmentMap, companyMap)
 
     for (const account of accounts) {
-      const carNumbersNotUploaded = await this.dynamoUploadedCarClient.queryCarNumbersByIdAndIsUploaded(account.id, false)
+      const carNumbersNotUploaded = await this.dynamoCarClient.queryNotUploadedCarsByUploader(account.id)
       if (!carNumbersNotUploaded.length) {
         console.log(`${account.id} has nothing to upload`)
         continue
@@ -55,24 +55,13 @@ if (require.main == module) {
       REGION,
     } = envs
 
-    // Repositories
+    const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
     const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
     const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
-    const dynamoUploadedCarClient = new DynamoUploadedCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
-    // SpreadSheet Client
-    const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
+    const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, SYNC_JOB_QUEUE_NAME, UPLOAD_JOB_QUEUE_NAME)
     // Category Map Creator
     const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)
-    // Batch Trigger
-    const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, SYNC_JOB_QUEUE_NAME, UPLOAD_JOB_QUEUE_NAME)
-    // Services
-    const carAssignService = new CarAssignService(dynamoCarClient, dynamoUploadedCarClient)
-    await new CarManageApp(
-      sheetClient,
-      categoryInitializer,
-      carAssignService,
-      dynamoUploadedCarClient,
-      batchClient
-    ).manageCars()
+
+    await new CarAssignApp(sheetClient, categoryInitializer, dynamoCarClient, batchClient).assign()
   })()
 }
