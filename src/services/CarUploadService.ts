@@ -31,7 +31,7 @@ export class CarUploadService {
     await this.dynamoCarClient.batchSaveCar(succeededSources.map(source=>source.car))
   }
 
-  async uploadCarById(id: string, worker: number = 4) {
+  async uploadCarById(id: string, worker: number = 3) {
     const cars = await this.dynamoCarClient.queryNotUploadedCarsByUploader(id)
     const { segmentMap, companyMap } = await this.categoryInitializer.initializeMaps()
     const { account, regionUrl } = await this.sheetClient.getAccountAndRegionUrlById(id)
