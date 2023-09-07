@@ -18,7 +18,7 @@ export class CarUploadService {
     if (!unUploadedCars.length) {
       return []
     }
-    const cars = await this.dynamoCarClient.QueryCarsByCarNumbers(unUploadedCars.map(car=>car.carNumber))
+    const cars = await this.dynamoCarClient.queryCarsByCarNumbers(unUploadedCars.map(car=>car.carNumber))
     return cars
   }
 

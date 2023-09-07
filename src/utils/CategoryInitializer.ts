@@ -28,6 +28,8 @@ export class CategoryInitializer {
         color: item.color.S!,
         company: item.company.S!,
         category: item.category.S!,
+        isUploaded: item.isUploaded.BOOL!,
+        uploader: item.uploader.S!,
       })
     })
   }

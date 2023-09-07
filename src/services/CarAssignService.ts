@@ -127,7 +127,7 @@ export class CarAssignService {
       const accountCarNumbers = accountUploadedCars.map(car=>car.carNumber)
       if (!accountCarNumbers.length) continue
 
-      const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountCarNumbers)
+      const accountCars = await this.dynamoCarClient.queryCarsByCarNumbers(accountCarNumbers)
       const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
       const { bongoPorterSources, importedSources, largeTruckSources, domesticSources } = this.categorizeSourcesByKind(acccountSources)
 
@@ -160,7 +160,7 @@ export class CarAssignService {
 
     for (const account of accounts) {
       const accountUploadedCars = await this.dynamoUploadedCarClient.queryById(account.id)
-      const accountCars = await this.dynamoCarClient.QueryCarsByCarNumbers(accountUploadedCars.map(car=>car.carNumber))
+      const accountCars = await this.dynamoCarClient.queryCarsByCarNumbers(accountUploadedCars.map(car=>car.carNumber))
       const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
       const carNumbersShouldAssigned = this.calculateAssignCars(account, acccountSources, sourceBundle)
 

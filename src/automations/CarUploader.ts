@@ -1,6 +1,6 @@
 import { Page, ProtocolError } from "puppeteer"
-import { Base64Image, CarBase, DetailModel, Model, Origin, UploadSource } from "../types"
-import { Car, Margin } from '../entities'
+import { Base64Image, CarBase, Origin, UploadSource } from "../types"
+import { Margin } from '../entities'
 
 export class CarUploaderSelector {
   private constructor() { }

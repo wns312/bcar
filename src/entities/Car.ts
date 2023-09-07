@@ -18,6 +18,8 @@ interface ICar {
   color: string
   category: string
   images: string[]
+  isUploaded: boolean
+  uploader: string
 }
 
 export class Car {
@@ -44,4 +46,6 @@ export class Car {
   color!: string
   category!: string
   images!: string[]
+  isUploaded!: boolean
+  uploader!: string
 }

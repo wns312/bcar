@@ -38,6 +38,8 @@ export class DynamoCarClient {
       title: record.title.S!,
       price: parseInt(record.price.N!),
       company: record.company.S!,
+      isUploaded: record.isUploaded.BOOL!,
+      uploader: record.uploader.S!,
     }))
   }
 
@@ -59,7 +61,7 @@ export class DynamoCarClient {
     return this.baseClient.batchDeleteItems(this.tableName, ...deleteRequestInput)
   }
 
-  async QueryCarsByCarNumbers(carNumbers: string[]): Promise<Car[]> {
+  async queryCarsByCarNumbers(carNumbers: string[]): Promise<Car[]> {
     if (!carNumbers.length) return []
     const responses = await this.baseClient.batchGetItems(
       this.tableName,
@@ -73,6 +75,97 @@ export class DynamoCarClient {
       return response.Responses![this.tableName]
     }).flat()
     return this.convertCars(records)
+  }
+
+  async queryAssignedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "attribute_exists(uploader)",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+      },
+    })
+    return records
+  }
+
+  async queryAssignedCarsByUploader(uploader: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "attribute_exists(uploader) AND uploader = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":u": { S: uploader },
+      },
+    })
+    return records
+  }
+
+  async queryNotAssignedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "attribute_not_exists(uploader)",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+      },
+    })
+    return records
+  }
+
+  async queryUploadedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: true },
+      },
+    })
+    return records
+  }
+
+  async queryNotUploadedCars() {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: false },
+      },
+    })
+    return records
+  }
+
+  async queryUploadedCarsByUploader(uploader: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i AND uploader = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: true },
+        ":u": { S: uploader },
+      },
+    })
+    return records
+  }
+
+  async queryNotUploadedCarsByUploader(uploader: string) {
+    const records = await this.baseClient.queryItems({
+      TableName: this.tableName,
+      KeyConditionExpression: "PK = :p",
+      FilterExpression: "isUploaded = :i AND uploader = :u",
+      ExpressionAttributeValues: {
+        ":p": { S: DynamoCarClient.carPK },
+        ":i": { BOOL: false },
+        ":u": { S: uploader },
+      },
+    })
+    return records
   }
 
   async queryCars() {
@@ -115,9 +208,8 @@ export class DynamoCarClient {
 
     const responses = await this.batchDeleteCarsByCarNumbers(carNumbers)
     responses.forEach(response=>{
-      console.error(response)
       if (response.$metadata.httpStatusCode !== 200) {
-        console.error(response);
+        console.error(response)
         throw new Error("Response Error")
       }
     })
@@ -147,7 +239,9 @@ export class DynamoCarClient {
         hasSeizure: { BOOL: car.hasSeizure },
         hasMortgage: { BOOL: car.hasMortgage },
         carCheckSrc: { S: car.carCheckSrc },
-        images: { L: car.images.map(image=>({S: image})) }
+        images: { L: car.images.map(image=>({S: image})) },
+        uploader: { S: car.uploader },
+        isUploaded: { BOOL: car.isUploaded },
       }
     }))
 

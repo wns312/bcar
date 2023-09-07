@@ -119,6 +119,8 @@ export class DetailCollector {
       title: draftCar.title,
       price: draftCar.price,
       company: draftCar.company,
+      isUploaded: false,
+      uploader: "",
     })
   }
 
