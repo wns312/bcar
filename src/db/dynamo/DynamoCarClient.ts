@@ -81,37 +81,39 @@ export class DynamoCarClient {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",
-      FilterExpression: "attribute_exists(uploader)",
+      FilterExpression: "uploader <> :u",
       ExpressionAttributeValues: {
         ":p": { S: DynamoCarClient.carPK },
+        ":u": { S: "" },
       },
     })
-    return records
+    return this.convertCars(records)
   }
 
   async queryAssignedCarsByUploader(uploader: string) {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",
-      FilterExpression: "attribute_exists(uploader) AND uploader = :u",
+      FilterExpression: "uploader = :u",
       ExpressionAttributeValues: {
         ":p": { S: DynamoCarClient.carPK },
         ":u": { S: uploader },
       },
     })
-    return records
+    return this.convertCars(records)
   }
 
   async queryNotAssignedCars() {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",
-      FilterExpression: "attribute_not_exists(uploader)",
+      FilterExpression: "uploader = :u",
       ExpressionAttributeValues: {
         ":p": { S: DynamoCarClient.carPK },
+        ":u": { S: "" },
       },
     })
-    return records
+    return this.convertCars(records)
   }
 
   async queryUploadedCars() {
@@ -124,7 +126,7 @@ export class DynamoCarClient {
         ":i": { BOOL: true },
       },
     })
-    return records
+    return this.convertCars(records)
   }
 
   async queryNotUploadedCars() {
@@ -137,7 +139,7 @@ export class DynamoCarClient {
         ":i": { BOOL: false },
       },
     })
-    return records
+    return this.convertCars(records)
   }
 
   async queryUploadedCarsByUploader(uploader: string) {
@@ -151,7 +153,7 @@ export class DynamoCarClient {
         ":u": { S: uploader },
       },
     })
-    return records
+    return this.convertCars(records)
   }
 
   async queryNotUploadedCarsByUploader(uploader: string) {
@@ -165,7 +167,7 @@ export class DynamoCarClient {
         ":u": { S: uploader },
       },
     })
-    return records
+    return this.convertCars(records)
   }
 
   async queryCars() {
