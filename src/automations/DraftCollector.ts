@@ -49,29 +49,25 @@ export class DraftCollector {
     await this.waitForSearchList(page)
   }
 
+  private async collectCarAmount(page: Page) {
+    const rawCarAmount = await page.$eval('#sellOpenCarCount', (ele) => {
+      if (!ele.textContent) throw new Error("Text is empty")
+      return ele.textContent!
+    })
+    return parseInt(rawCarAmount.replaceAll(",", ""))
+  }
+
   // 여기서 화물과 버스 page도 가져올 것
   private async collectPageAmount() {
     const page = await PageInitializer.createPage()
     try {
       await PageInitializer.loginBCar(page, this.loginUrl, this.id, this.pw)
       await this.setPrice(page, 100, 2500)
-      const rawCarAmount = await page.$eval('#sellOpenCarCount', (ele) => {
-        if (!ele.textContent) throw new Error("Text is empty")
-        return ele.textContent!
-      })
+      const carAmount = await this.collectCarAmount(page)
       await this.setTruckPrice(page, 100, 4000)
-      const rawTruckAmount = await page.$eval('#sellOpenCarCount', (ele) => {
-        if (!ele.textContent) throw new Error("Text is empty")
-        return ele.textContent!
-      })
+      const truckAmount = await this.collectCarAmount(page)
       await this.setBusPrice(page, 100, 4000)
-      const rawBusAmount = await page.$eval('#sellOpenCarCount', (ele) => {
-        if (!ele.textContent) throw new Error("Text is empty")
-        return ele.textContent!
-      })
-      const carAmount = parseInt(rawCarAmount.replaceAll(",", ""))
-      const truckAmount = parseInt(rawTruckAmount.replaceAll(",", ""))
-      const busAmount = parseInt(rawBusAmount.replaceAll(",", ""))
+      const busAmount = await this.collectCarAmount(page)
 
       const carPageAmount = Math.ceil(carAmount / 100) + 1
       const truckPageAmount = Math.ceil(truckAmount / 100) + 1

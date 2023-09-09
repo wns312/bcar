@@ -11,7 +11,7 @@ export class SheetClient {
 
   static accountSheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
   static accountRangeStart = "A3"
-  static accountRangeEnd = "I"
+  static accountRangeEnd = "K"
 
   static regionSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
   static regionRangeStart = "A3"
@@ -111,7 +111,7 @@ export class SheetClient {
     const values = response.data.values as string[][]
     const accountRawList = values?.splice(1)
     this.accounts = accountRawList.map(
-      ([index, id, pw, region, ta, bpa, ia, lta, da]) => new Account({
+      ([index, id, pw, region, ta, bpa, ia, lta, da, da1000, da2500]) => new Account({
         index: parseInt(index),
         id,
         pw,
@@ -121,6 +121,8 @@ export class SheetClient {
         importedAmount: parseInt(ia),
         largeTruckAmount: parseInt(lta),
         domesticAmount: parseInt(da),
+        domesticAmountUnder1000: parseInt(da1000),
+        domesticAmountUnder2500: parseInt(da2500),
       })
     )
     return this.accounts
