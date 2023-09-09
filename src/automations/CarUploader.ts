@@ -313,7 +313,6 @@ export class CarUploader {
       console.error(carMargin)
       throw new Error("Margin error")
     }
-    console.log(`Margin : ${carMargin}`)
     return carMargin
   }
 
@@ -505,18 +504,11 @@ export class CarUploader {
         // 에러 메시지: net::ERR_INTERNET_DISCONNECTED at https://car.ansankcr.co.kr/my/car_post/new?car_idx=&state=0
         // 에러 메시지: net::ERR_CONNECTION_TIMED_OUT
         if (error instanceof ProtocolError || !(error instanceof Error)) {
-          console.error(error)
-          console.error("Unexpected error: stop execution")
+          console.error(error, "\nUnexpected error: stop execution")
           return
         }
-        console.error("차량 등록에 실패했습니다.")
-        console.error(source.car.carNumber)
-        console.error(source.origin)
-        console.error(source.segment)
-        console.error(source.company)
-        console.error(error.name)
-        console.error(error.stack)
-
+        console.error("차량 등록에 실패했습니다:", source.car.carNumber, source.origin, source.segment, source.company, )
+        console.error(error.name, error.stack)
       }
     }
   }

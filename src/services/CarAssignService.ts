@@ -1,5 +1,5 @@
 import { DynamoCarClient } from "../db"
-import { Account } from "../entities"
+import { Account, Car } from "../entities"
 import { Company, Origin, Segment, SourceBundle, UploadSource } from "../types"
 import { CarClassifier } from "../utils"
 
@@ -9,6 +9,18 @@ export class CarAssignService {
   private static bigCarsRegex = /톤|1톤|1.2톤|1.4톤|덤프|마이티|메가트럭|에어로|카운티|그랜버드|라이노|복사|봉고화물|세레스|콤보|타이탄|트레이드|파맥스|르노마스터/
 
   constructor(private dynamoCarClient: DynamoCarClient) {}
+
+  private static categorizeCarsByAccountId(assignedCars: Car[]) {
+    const carMap = new Map<string, Car[]>()
+    assignedCars.reduce((map, item)=>{
+      if (map.get(item.uploader) === undefined) {
+        map.set(item.uploader, [])
+      }
+      map.get(item.uploader)!.push(item)
+      return map
+    }, carMap)
+    return carMap
+  }
 
   private static categorizeSourcesByKind(classifiedSources: UploadSource[]) {
     const [importedSources, bongoPorterSources, largeTruckSources, domesticSources] = classifiedSources.reduce((list, source)=> {
@@ -57,12 +69,13 @@ export class CarAssignService {
     const splicedSpecialSources = importedSources.splice(0, account.importedAmount - AISources.length)
       .concat(largeTruckSources.splice(0, account.largeTruckAmount - ALTSources.length))
       .concat(bongoPorterSources.splice(0, account.bongoPorterAmount - ABPSources.length))
-      .concat(bongoPorterSources.splice(0, account.bongoPorterAmount - ABPSources.length))
 
-      // 일반국내차량 계산 후 할당될 일반차량과 특수차량을 합침
+
+    // 일반국내차량 계산 후 할당될 일반차량과 특수차량을 합침
     return domesticSources
       .splice(0, totalAddAmount - splicedSpecialSources.length)
       .concat(splicedSpecialSources)
+      .splice(0, totalAddAmount)
       .map(source=>source.car)
   }
 
@@ -87,4 +100,28 @@ export class CarAssignService {
     }
     console.log("할당 완료")
   }
+
+
+  async releaseCars(accounts: Account[], segmentMap: Map<string, Segment>, companyMap: Map<string, Company>) {
+    const assignedCars = await this.dynamoCarClient.queryAssignedCars()
+    const carMap = CarAssignService.categorizeCarsByAccountId(assignedCars)
+    for (const account of accounts) {
+      const accountCars = carMap.get(account.id)
+      if (accountCars === undefined) continue
+      const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
+      const { bongoPorterSources, importedSources, largeTruckSources, domesticSources } = CarAssignService.categorizeSourcesByKind(acccountSources)
+      importedSources.splice(0, account.importedAmount)
+      largeTruckSources.splice(0, account.largeTruckAmount)
+      bongoPorterSources.splice(0, account.bongoPorterAmount)
+      domesticSources.splice(0, account.domesticAmount)
+      const deleteCars = domesticSources.concat(largeTruckSources).concat(bongoPorterSources).concat(importedSources).map(source=>source.car)
+      if (deleteCars.length === 0) return
+      deleteCars.forEach(car => {
+        car.uploader = ""
+        car.isUploaded = false
+      })
+      await this.dynamoCarClient.batchSaveCar(deleteCars)
+    }
+  }
+
 }

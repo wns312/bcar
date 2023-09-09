@@ -20,6 +20,7 @@ export class CarAssignApp {
   async assign() {
     const accounts = await this.sheetClient.getAccounts()
     const { segmentMap, companyMap } = await this.categoryInitializer.initializeMaps()
+    await this.carAssignService.releaseCars(accounts, segmentMap, companyMap)
     await this.carAssignService.assignCars(accounts, segmentMap, companyMap)
 
     for (const account of accounts) {
@@ -33,7 +34,7 @@ export class CarAssignApp {
         jobName: `syncAndUploadCars-${account.id}`,
         command: ["node", `/app/dist/src/apps/${CarSyncApp.name}.js`],
         environment: [{ name: "KCR_ID", value: account.id }],
-        timeout: 60 * 30,
+        timeout: 60 * 20,
         attempts: 3
       })
     }
