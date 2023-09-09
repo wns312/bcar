@@ -1,3 +1,5 @@
+const BCAR_ENV = process.env.NODE_ENV === undefined || process.env.NODE_ENV !== "prod" ? process.env : JSON.parse(process.env.BCAR_ENV!)
+
 const {
   SOURCE_ADMIN_ID,
   SOURCE_ADMIN_PW,
@@ -28,7 +30,7 @@ const {
   GOOGLE_KCRURL_SHEET_NAME,
   GOOGLE_MARGIN_SHEET_NAME,
   GOOGLE_SPREAD_SHEET_ID,
-} = process.env
+} = BCAR_ENV
 
 const envs = {
   NODE_ENV: NODE_ENV || "local",
