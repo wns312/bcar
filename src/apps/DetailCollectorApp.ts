@@ -12,6 +12,7 @@ export class DetailCollectorApp {
   @timer()
   async collectDetails() {
     await this.carCollectService.collectDetails()
+    if (envs.NODE_ENV != "prod") return
     const response = await this.batchClient.submitSyncJob({
       jobName: "manageCars",
       command: ["node", `/app/dist/src/apps/${CarAssignApp.name}.js`],

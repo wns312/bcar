@@ -22,14 +22,17 @@ export class CarAssignApp {
     const { segmentMap, companyMap } = await this.categoryInitializer.initializeMaps()
     await this.carAssignService.releaseCars(accounts, segmentMap, companyMap)
     await this.carAssignService.assignCars(accounts, segmentMap, companyMap)
-
+    if (envs.NODE_ENV != "prod") return
+    const assignedCars = await this.dynamoCarClient.queryAssignedCars()
+    const carMap = CarAssignService.categorizeCarsByAccountId(assignedCars)
     for (const account of accounts) {
-      const carNumbersNotUploaded = await this.dynamoCarClient.queryNotUploadedCarsByUploader(account.id)
-      if (!carNumbersNotUploaded.length) {
+      if (!carMap.has(account.id)) continue
+      const accountCars = carMap.get(account.id)!
+      const notUploadedAccountCars = accountCars.filter(car=>!car.isUploaded)
+      if (!notUploadedAccountCars.length) {
         console.log(`${account.id} has nothing to upload`)
         continue
       }
-
       await this.batchClient.submitUploadJob({
         jobName: `syncAndUploadCars-${account.id}`,
         command: ["node", `/app/dist/src/apps/${CarSyncApp.name}.js`],

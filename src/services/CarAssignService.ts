@@ -10,9 +10,10 @@ export class CarAssignService {
 
   constructor(private dynamoCarClient: DynamoCarClient) {}
 
-  private static categorizeCarsByAccountId(assignedCars: Car[]) {
+  static categorizeCarsByAccountId(assignedCars: Car[]) {
     const carMap = new Map<string, Car[]>()
     assignedCars.reduce((map, item)=>{
+      if (!item.uploader) return map
       if (map.get(item.uploader) === undefined) {
         map.set(item.uploader, [])
       }
@@ -121,7 +122,7 @@ export class CarAssignService {
       const deleteCars = domesticSources.concat(largeTruckSources).concat(bongoPorterSources).concat(importedSources).map(source=>source.car)
       if (deleteCars.length === 0) continue
       deleteCars.forEach(car => {
-        car.uploader = ""
+        car.uploader = "null"
         car.isUploaded = false
       })
       await this.dynamoCarClient.batchSaveCar(deleteCars)

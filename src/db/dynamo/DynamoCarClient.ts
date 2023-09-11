@@ -11,6 +11,9 @@ export class DynamoCarClient {
   static draftPK = "#DRAFT"
   static carPrefix = "#CAR-"
 
+  static PK_SK_INDEX = "PK-SK-index"
+  static PK_UPLOADER_INDEX = "PK-uploader-index"
+
   constructor(region: string, tableName: string, indexName: string) {
     this.baseClient = new DynamoBaseClient(region);
     this.tableName = tableName;
@@ -61,7 +64,7 @@ export class DynamoCarClient {
       FilterExpression: "uploader <> :u",
       ExpressionAttributeValues: {
         ":p": { S: DynamoCarClient.carPK },
-        ":u": { S: "" },
+        ":u": { S: "null" },
       },
     })
     return this.convertCars(records)
@@ -70,8 +73,8 @@ export class DynamoCarClient {
   async queryAssignedCarsByUploader(uploader: string) {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
-      KeyConditionExpression: "PK = :p",
-      FilterExpression: "uploader = :u",
+      IndexName: DynamoCarClient.PK_UPLOADER_INDEX,
+      KeyConditionExpression: "PK = :p and uploader = :u",
       ExpressionAttributeValues: {
         ":p": { S: DynamoCarClient.carPK },
         ":u": { S: uploader },
@@ -87,13 +90,13 @@ export class DynamoCarClient {
       FilterExpression: "uploader = :u",
       ExpressionAttributeValues: {
         ":p": { S: DynamoCarClient.carPK },
-        ":u": { S: "" },
+        ":u": { S: "null" },
       },
     })
     return this.convertCars(records)
   }
 
-  async queryUploadedCars() {
+  async queryAssignedAndUploadedCars() {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",
@@ -106,7 +109,7 @@ export class DynamoCarClient {
     return this.convertCars(records)
   }
 
-  async queryNotUploadedCars() {
+  async queryAssignedAndNotUploadedCars() {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",
@@ -119,21 +122,22 @@ export class DynamoCarClient {
     return this.convertCars(records)
   }
 
-  async queryUploadedCarsByUploader(uploader: string) {
+  async queryAssignedAndUploadedCarsByUploader(uploader: string) {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
-      KeyConditionExpression: "PK = :p",
-      FilterExpression: "isUploaded = :i AND uploader = :u",
+      IndexName: DynamoCarClient.PK_UPLOADER_INDEX,
+      KeyConditionExpression: "PK = :p AND uploader = :u",
+      FilterExpression: "isUploaded = :i",
       ExpressionAttributeValues: {
         ":p": { S: DynamoCarClient.carPK },
-        ":i": { BOOL: true },
         ":u": { S: uploader },
+        ":i": { BOOL: true },
       },
     })
     return this.convertCars(records)
   }
 
-  async queryNotUploadedCarsByUploader(uploader: string) {
+  async queryAssignedAndNotUploadedCarsByUploader(uploader: string) {
     const records = await this.baseClient.queryItems({
       TableName: this.tableName,
       KeyConditionExpression: "PK = :p",

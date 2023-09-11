@@ -22,7 +22,7 @@ import {
   ScanCommandInput,
 } from "@aws-sdk/client-dynamodb"
 import { ResponseError } from "../../errors"
-import { chunk } from "../../utils/index"
+import { chunk, delay } from "../../utils"
 
 export class DynamoBaseClient {
   client: DynamoDBClient
@@ -124,12 +124,20 @@ export class DynamoBaseClient {
     const chunks = chunk(input, 25)
     let responses: BatchWriteItemCommandOutput[] = []
     for (const deleteRequests of chunks) {
-      const response = await this.batchWriteItem({
+      let response = await this.batchWriteItem({
         RequestItems: {
           [tableName]: deleteRequests
         }
       })
-      if (response.$metadata.httpStatusCode !== 200) console.error(response)
+      if (response.$metadata.httpStatusCode !== 200) {
+        console.error(response)
+        await delay(2000)
+        response = await this.batchWriteItem({
+          RequestItems: {
+            [tableName]: deleteRequests
+          }
+        })
+      }
       responses.push(response)
     }
     return responses
