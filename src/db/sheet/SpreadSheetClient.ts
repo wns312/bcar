@@ -9,16 +9,16 @@ import { Origin } from "../../types"
 export class SheetClient {
   static spreadsheetId = envs.GOOGLE_SPREAD_SHEET_ID
 
-  static accountSheetName = envs.GOOGLE_ACCOUNT_SHEET_NAME
+  static accountSheetName = "Accounts"
   static accountRangeStart = "A3"
   static accountRangeEnd = "K"
 
-  static regionSheetName = envs.GOOGLE_KCRURL_SHEET_NAME
+  static regionSheetName = "URLs"
   static regionRangeStart = "A3"
   static regionRangeEnd = "B"
 
-  static commentSheetName = envs.GOOGLE_COMMENT_SHEET_NAME
-  static marginSheetName = envs.GOOGLE_MARGIN_SHEET_NAME
+  static commentSheetName = "Comment"
+  static marginSheetName = "Margin"
 
   sheets: sheets_v4.Sheets
   accounts: Account[] = []
