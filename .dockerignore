@@ -1,7 +1,6 @@
 bcar
 node_modules
 passphrase
-serverless
 
 #VSCode
 .vscode

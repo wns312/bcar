@@ -37,8 +37,3 @@ jobs:
           tags: ${{ secrets.PRIVATE_REGISTRY_BASE_URL }}/${{ secrets.PRIVATE_REGISTRY_REPOSITORY }}:local
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-# 추가적으로 해야할 것
-# register jobdefinition
-
-
