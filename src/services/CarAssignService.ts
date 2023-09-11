@@ -82,12 +82,13 @@ export class CarAssignService {
   }
 
   async assignCars(accounts: Account[], segmentMap: Map<string, Segment>, companyMap: Map<string, Company>) {
+    const assignedCars = await this.dynamoCarClient.queryAssignedCars()
+    const carMap = CarAssignService.categorizeCarsByAccountId(assignedCars)
     const unregisteredCars = await this.dynamoCarClient.queryNotAssignedCars()
     const unregisteredSources = new CarClassifier(unregisteredCars, segmentMap, companyMap).classifyAll()
     const sourceBundle = CarAssignService.categorizeSourcesByKind(unregisteredSources)
-
     for (const account of accounts) {
-      const accountCars = await this.dynamoCarClient.queryAssignedCarsByUploader(account.id)
+      const accountCars = carMap.has(account.id) ? carMap.get(account.id)! : []
       const acccountSources = new CarClassifier(accountCars, segmentMap, companyMap).classifyAll()
       const assignCars = CarAssignService.calculateAssignCars(account, acccountSources, sourceBundle)
       console.log("할당될 총 소스: ", assignCars.length)
