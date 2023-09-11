@@ -6,28 +6,6 @@ on:
       - 'main'
 
 jobs:
-  Serverless-Deploy:
-    timeout-minutes: 5
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        node-version: [16.x]
-    steps:
-    - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-    - run: cd ./serverless && npm ci
-    - name: serverless deploy
-      uses: serverless/github-action@v3.2
-      with:
-        args: -c "cd ./serverless && serverless deploy"
-        entrypoint: /bin/sh
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
   Build-Image:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
@@ -59,7 +37,3 @@ jobs:
           tags: ${{ secrets.PRIVATE_REGISTRY_BASE_URL }}/${{ secrets.PRIVATE_REGISTRY_REPOSITORY }}:prod
           cache-from: type=gha
           cache-to: type=gha,mode=max
-# 추가적으로 해야할 것
-# register jobdefinition
-
-
