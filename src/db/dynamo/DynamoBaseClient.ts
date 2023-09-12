@@ -129,14 +129,17 @@ export class DynamoBaseClient {
           [tableName]: deleteRequests
         }
       })
-      if (response.$metadata.httpStatusCode !== 200) {
-        console.error(response)
-        await delay(2000)
+      if (response.UnprocessedItems !== undefined && Object.keys(response.UnprocessedItems).length !== 0) {
+        console.error("UnprocessedItems(retry): ", response.UnprocessedItems)
+        await delay(1000)
         response = await this.batchWriteItem({
           RequestItems: {
             [tableName]: deleteRequests
           }
         })
+      }
+      if (response.$metadata.httpStatusCode !== 200) {
+        console.error(response)
       }
       responses.push(response)
     }
