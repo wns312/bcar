@@ -16,6 +16,7 @@ export class DraftCollectorApp {
       console.log("Nothing cars have been changed. end execution.")
       return
     }
+    if (envs.NODE_ENV != "prod") return
     const response = await this.batchClient.submitSyncJob({
       jobName: "collectDetails",
       command: ["node", `/app/dist/src/apps/${DetailCollectorApp.name}.js`],

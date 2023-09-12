@@ -32,7 +32,7 @@ export class CarUploadService {
   }
 
   async uploadCarById(id: string, worker: number = 3) {
-    const cars = await this.dynamoCarClient.queryNotUploadedCarsByUploader(id)
+    const cars = await this.dynamoCarClient.queryAssignedAndNotUploadedCarsByUploader(id)
     const { segmentMap, companyMap } = await this.categoryInitializer.initializeMaps()
     const { account, regionUrl } = await this.sheetClient.getAccountAndRegionUrlById(id)
     if (!cars.length) {

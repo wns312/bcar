@@ -120,7 +120,7 @@ export class DetailCollector {
       price: draftCar.price,
       company: draftCar.company,
       isUploaded: false,
-      uploader: "",
+      uploader: "null"
     })
   }
 

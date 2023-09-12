@@ -14,7 +14,7 @@ export class CarSyncApp {
   async syncAndUploadCars(id: string) {
     await this.uploadedCarSyncService.syncCarsById(id)
     await this.carUploadService.uploadCarById(id)
-    const carNumbersAfterUpload = await this.dynamoCarClient.queryNotUploadedCarsByUploader(id)
+    const carNumbersAfterUpload = await this.dynamoCarClient.queryAssignedAndNotUploadedCarsByUploader(id)
     if (carNumbersAfterUpload.length) {
       console.error("There is more cars to be uploaded. exit 1 for retry.")
       process.exit(1)
