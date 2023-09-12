@@ -108,11 +108,20 @@ export class DynamoBaseClient {
     const chunks = chunk(input, 25)
     let responses: BatchWriteItemCommandOutput[] = []
     for (const putRequests of chunks) {
-      const response = await this.batchWriteItem({
+      let response = await this.batchWriteItem({
         RequestItems: {
           [tableName]: putRequests
         }
       })
+      if (response.UnprocessedItems !== undefined && Object.keys(response.UnprocessedItems).length !== 0) {
+        console.error("UnprocessedItems(retry): ", response.UnprocessedItems)
+        await delay(1000)
+        response = await this.batchWriteItem({
+          RequestItems: {
+            [tableName]: putRequests
+          }
+        })
+      }
       if (response.$metadata.httpStatusCode !== 200) console.error(response)
       responses.push(response)
     }

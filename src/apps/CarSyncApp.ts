@@ -12,13 +12,14 @@ export class CarSyncApp {
 
   @timer()
   async syncAndUploadCars(id: string) {
-    await this.uploadedCarSyncService.syncCarsById(id)
-    await this.carUploadService.uploadCarById(id)
-    const carNumbersAfterUpload = await this.dynamoCarClient.queryAssignedAndNotUploadedCarsByUploader(id)
-    if (carNumbersAfterUpload.length) {
-      console.error("There is more cars to be uploaded. exit 1 for retry.")
-      process.exit(1)
+    for (let i = 0; i < 3; i++) {
+      await this.uploadedCarSyncService.syncCarsById(id)
+      await this.carUploadService.uploadCarById(id)
+      const carNumbersAfterUpload = await this.dynamoCarClient.queryAssignedAndNotUploadedCarsByUploader(id)
+      if (carNumbersAfterUpload.length === 0) return
+      console.error(`There is more cars to be uploaded. retry: ${i+1}`)
     }
+    process.exit(1)
   }
 }
 
@@ -28,19 +29,17 @@ if (require.main == module) {
     if (!id) throw new Error("No id env")
 
     const {
-      BCAR_CATEGORY_INDEX,
       BCAR_CATEGORY_TABLE,
-      BCAR_INDEX,
       BCAR_TABLE,
       GOOGLE_CLIENT_EMAIL,
       GOOGLE_PRIVATE_KEY,
       REGION,
     } = envs
     const categoryInitializer = new CategoryInitializer(
-      new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
+      new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE)
     )
     const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
-    const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
+    const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE)
     const uploadedCarSyncService = new UploadedCarSyncService(dynamoCarClient, sheetClient)
     const carUploadService = new CarUploadService(sheetClient, dynamoCarClient, categoryInitializer)
 

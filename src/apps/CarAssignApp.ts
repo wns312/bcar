@@ -47,9 +47,7 @@ export class CarAssignApp {
 if (require.main == module) {
   (async ()=>{
     const {
-      BCAR_CATEGORY_INDEX,
       BCAR_CATEGORY_TABLE,
-      BCAR_INDEX,
       BCAR_TABLE,
       GOOGLE_CLIENT_EMAIL,
       GOOGLE_PRIVATE_KEY,
@@ -60,8 +58,8 @@ if (require.main == module) {
     } = envs
 
     const sheetClient = new SheetClient(GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY)
-    const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
-    const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE, BCAR_CATEGORY_INDEX)
+    const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE)
+    const dynamoCategoryClient = new DynamoCategoryClient(REGION, BCAR_CATEGORY_TABLE)
     const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, SYNC_JOB_QUEUE_NAME, UPLOAD_JOB_QUEUE_NAME)
     // Category Map Creator
     const categoryInitializer = new CategoryInitializer(dynamoCategoryClient)

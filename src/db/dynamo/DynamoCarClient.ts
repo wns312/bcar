@@ -3,9 +3,8 @@ import { DynamoBaseClient } from "./DynamoBaseClient"
 import { Car, DraftCar } from "../../entities"
 
 export class DynamoCarClient {
-  baseClient: DynamoBaseClient;
-  tableName: string;
-  indexName: string;
+  baseClient: DynamoBaseClient
+  tableName: string
 
   static carPK = "#CAR"
   static draftPK = "#DRAFT"
@@ -14,10 +13,9 @@ export class DynamoCarClient {
   static PK_SK_INDEX = "PK-SK-index"
   static PK_UPLOADER_INDEX = "PK-uploader-index"
 
-  constructor(region: string, tableName: string, indexName: string) {
-    this.baseClient = new DynamoBaseClient(region);
-    this.tableName = tableName;
-    this.indexName = indexName;
+  constructor(region: string, tableName: string) {
+    this.baseClient = new DynamoBaseClient(region)
+    this.tableName = tableName
   }
 
   convertCars(records: Record<string, AttributeValue>[]) {
