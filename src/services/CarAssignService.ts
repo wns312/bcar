@@ -83,9 +83,9 @@ export class CarAssignService {
   }
 
   async assignCars(accounts: Account[], segmentMap: Map<string, Segment>, companyMap: Map<string, Company>) {
-    const assignedCars = await this.dynamoCarClient.queryAssignedCars()
-    const carMap = CarAssignService.categorizeCarsByAccountId(assignedCars)
-    const unregisteredCars = await this.dynamoCarClient.queryNotAssignedCars()
+    const cars = await this.dynamoCarClient.queryCars()
+    const carMap = CarAssignService.categorizeCarsByAccountId(cars)
+    const unregisteredCars = carMap.get("null")!
     const unregisteredSources = new CarClassifier(unregisteredCars, segmentMap, companyMap).classifyAll()
     const sourceBundle = CarAssignService.categorizeSourcesByKind(unregisteredSources)
     for (const account of accounts) {
@@ -95,7 +95,10 @@ export class CarAssignService {
       console.log("할당될 총 소스: ", assignCars.length)
       console.log("할당된 뒤의 총 소스: ", acccountSources.length + assignCars.length)
       console.log("=====================================")
-      if (account.totalAmount !== acccountSources.length + assignCars.length) throw new Error("Assign Amount Error")
+      if (account.totalAmount !== acccountSources.length + assignCars.length) {
+        throw new Error("Assign Amount Error")
+      }
+
       if (!assignCars.length) continue
       assignCars.forEach((car)=> {
         car.uploader = account.id

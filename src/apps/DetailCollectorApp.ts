@@ -25,7 +25,6 @@ export class DetailCollectorApp {
 if (require.main == module) {
   (async ()=>{
     const {
-      BCAR_INDEX,
       BCAR_TABLE,
       REGION,
       SOURCE_ADMIN_ID,
@@ -47,8 +46,8 @@ if (require.main == module) {
       SOURCE_SEARCH_BASE,
       SOURCE_SEARCH_TRUCK_BASE,
       SOURCE_SEARCH_BUS_BASE,
-      )
-    const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE, BCAR_INDEX)
+    )
+    const dynamoCarClient = new DynamoCarClient(REGION, BCAR_TABLE)
     const carCollectService = new CarCollectService(draftCollector, new DetailCollector(), dynamoCarClient)
     const batchClient = new BatchClient(REGION, JOB_DEFINITION_NAME, SYNC_JOB_QUEUE_NAME, UPLOAD_JOB_QUEUE_NAME)
     await new DetailCollectorApp(carCollectService, batchClient).collectDetails()

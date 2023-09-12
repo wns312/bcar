@@ -5,17 +5,15 @@ import { Company, Segment } from "../../types"
 export class DynamoCategoryClient {
   baseClient: DynamoBaseClient;
   tableName: string;
-  indexName: string;
 
   static segmentPrefix = "#SEGMENT-"
   static companyPrefix = "#COMPANY-"
   static modelPrefix = "#MODEL-"
   static detailModelPrefix = "#DETAIL-"
 
-  constructor(region: string, tableName: string, indexName: string) {
+  constructor(region: string, tableName: string) {
     this.baseClient = new DynamoBaseClient(region);
     this.tableName = tableName;
-    this.indexName = indexName;
   }
 
   private async scan(PK: string, SK: string) {
