@@ -4,6 +4,12 @@ on:
   push:
     branches-ignore:
       - 'main'
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '**.json'
+
 jobs:
   Build-Image:
     runs-on: ubuntu-22.04
