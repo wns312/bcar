@@ -108,11 +108,14 @@ export class DraftCollector {
         const myDiv = document.createElement('div')
         myDiv.innerHTML = decoder.decode(buffer)
 
-        const trTags = myDiv.querySelectorAll("table > tbody > tr")
-        return Array.from(trTags)
-          .filter(tr=>tr.querySelectorAll("td").length)
-          .map(tr=>{
+        const trTags = Array.from(myDiv.querySelectorAll("table > tbody > tr")).filter(tr=>tr.querySelectorAll("td").length)
+        return trTags.map(tr=>{
           const td = tr.querySelectorAll("td")
+          const infoArr = td[2].querySelectorAll('a > div.txt_comment.type3')![0].textContent!.trim().split("|")
+          const agency = infoArr[3]
+          const rawSeller = infoArr[4].split("(")
+          const seller = rawSeller[0].trim()
+          const sellerPhone = rawSeller[1].replace(")", "")
           const title = td[2].querySelector('a > strong')!.textContent!.trim()
           const rawCompany = title.split(' ')[0]
           const company = rawCompany !== '제네시스' ? rawCompany : '현대'
@@ -123,6 +126,9 @@ export class DraftCollector {
               title,
               company,
               carNumber,
+              agency,
+              seller,
+              sellerPhone,
               detailPageNum: detailPageNum,
               price: parseInt(price),
           }

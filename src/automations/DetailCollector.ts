@@ -82,12 +82,21 @@ export class DetailCollector {
     const displacement = parseInt(displacementStr.replaceAll(",", "").replaceAll("cc", "").replaceAll("-", "0"))!
     const [hasSeizure, hasMortgage] = seizureAndMortgage.split(' / ').map(b=>b === '있음')
 
-    const images = cheerio.parseHTML($.html('#detail_box div:nth-child(16) a img[src]'))
+    let images = cheerio.parseHTML($.html('#detail_box div:nth-child(16) a img[src]'))
       .map(image=>Object.entries(image).filter(([k, v])=> k === 'attribs').map(([k, v])=> v))
       .flat()
       .map(attrs=>Object.entries(attrs).filter(([k, v])=> k === 'src').map(([k, v])=> v))
       .flat() as string[]
-
+    images = images.filter(image=>!image.startsWith("/"))
+    if (images.length < 5) {
+      console.error("images poverty")
+      return
+    }
+    const response = await fetch(images[0])
+    if (response.status >= 300) {
+      console.error("image error")
+      return
+    }
     const carCheckNumList = cheerio.parseHTML($.html('body #detail_box div:nth-child(21) iframe'))
 
     let carCheckSrc: string = ""
@@ -119,6 +128,9 @@ export class DetailCollector {
       title: draftCar.title,
       price: draftCar.price,
       company: draftCar.company,
+      agency: draftCar.agency,
+      seller: draftCar.seller,
+      sellerPhone: draftCar.sellerPhone,
       isUploaded: false,
       uploader: "null"
     })

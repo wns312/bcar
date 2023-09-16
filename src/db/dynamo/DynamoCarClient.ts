@@ -41,6 +41,9 @@ export class DynamoCarClient {
       company: record.company.S!,
       isUploaded: record.isUploaded.BOOL!,
       uploader: record.uploader.S!,
+      agency: record.agency.S!,
+      seller: record.seller.S!,
+      sellerPhone: record.sellerPhone.S!,
     }))
   }
 
@@ -221,6 +224,9 @@ export class DynamoCarClient {
         hasMortgage: { BOOL: car.hasMortgage },
         carCheckSrc: { S: car.carCheckSrc },
         images: { L: car.images.map(image=>({S: image})) },
+        agency: { S: car.agency },
+        seller: { S: car.seller },
+        sellerPhone: { S: car.sellerPhone },
         uploader: { S: car.uploader },
         isUploaded: { BOOL: car.isUploaded },
       }
@@ -238,6 +244,9 @@ export class DynamoCarClient {
       company: record.company.S!,
       carNumber: record.carNumber.S!,
       detailPageNum: record.detailPageNum.S!,
+      agency: record.agency.S!,
+      seller: record.seller.S!,
+      sellerPhone: record.sellerPhone.S!,
       price: parseInt(record.price.N!),
     }))
   }
@@ -254,6 +263,9 @@ export class DynamoCarClient {
         title: { S: car.title },
         price: { N: car.price.toString() },
         detailPageNum: { S: car.detailPageNum.toString() },
+        agency: { S: car.agency.toString() },
+        seller: { S: car.seller.toString() },
+        sellerPhone: { S: car.sellerPhone.toString() },
       }
     }))
     return this.baseClient.batchPutItems(this.tableName, ...putItems)
