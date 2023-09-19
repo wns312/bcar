@@ -87,7 +87,7 @@ export class DetailCollector {
       .flat()
       .map(attrs=>Object.entries(attrs).filter(([k, v])=> k === 'src').map(([k, v])=> v))
       .flat() as string[]
-    images = images.filter(image=>!image.startsWith("/"))
+    images = images.filter(image=>!image.startsWith("/") || !image.includes("nophoto"))
     if (images.length < 5) {
       console.error("images poverty")
       return
