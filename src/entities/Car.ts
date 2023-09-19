@@ -20,6 +20,9 @@ interface ICar {
   images: string[]
   isUploaded: boolean
   uploader: string
+  agency: string
+  seller: string
+  sellerPhone: string
 }
 
 export class Car {
@@ -48,4 +51,7 @@ export class Car {
   images!: string[]
   isUploaded!: boolean
   uploader!: string
+  agency!: string
+  seller!: string
+  sellerPhone!: string
 }

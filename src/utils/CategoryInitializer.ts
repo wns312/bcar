@@ -30,6 +30,9 @@ export class CategoryInitializer {
         category: item.category.S!,
         isUploaded: item.isUploaded.BOOL!,
         uploader: item.uploader.S!,
+        agency: item.agency.S!,
+        seller: item.seller.S!,
+        sellerPhone: item.sellerPhone.S!,
       })
     })
   }

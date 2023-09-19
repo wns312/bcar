@@ -3,6 +3,9 @@ interface IDraftCar {
   title: string
   company: string
   detailPageNum: string
+  agency: string
+  seller: string
+  sellerPhone: string
   price: number
 }
 
@@ -15,5 +18,8 @@ export class DraftCar implements IDraftCar {
   title!: string
   company!: string
   detailPageNum!: string
+  agency!: string
+  seller!: string
+  sellerPhone!: string
   price!: number
 }
