@@ -13,7 +13,7 @@ export class CarAssignApp {
     private dynamoCarClient: DynamoCarClient,
     private batchClient: BatchClient,
   ) {
-    this.carAssignService = new CarAssignService(dynamoCarClient)
+    this.carAssignService = new CarAssignService(dynamoCarClient, sheetClient)
   }
 
   @timer()
