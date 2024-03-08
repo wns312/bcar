@@ -42,11 +42,8 @@ export class BatchClient {
       timeout: { attemptDurationSeconds : timeout ? timeout : 900 },
       retryStrategy: { attempts: attempts ? attempts : 1},
       containerOverrides: {
-        environment: [...this.environment, ...environment || [], {
-          name: "NODE_ENV",
-          value: "prod"
-        }],
         command,
+        environment: environment,
         resourceRequirements: (vcpu && memory) ? [
           { type: "VCPU", value: vcpu.toString() },
           { type: "MEMORY", value: memory.toString()}
