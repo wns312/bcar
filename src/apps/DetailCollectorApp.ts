@@ -14,7 +14,7 @@ export class DetailCollectorApp {
     await this.carCollectService.collectDetails()
     if (envs.NODE_ENV != "prod") return
     const response = await this.batchClient.submitSyncJob({
-      jobName: "manageCars",
+      jobName: "assignCars",
       command: ["node", `/app/dist/src/apps/${CarAssignApp.name}.js`],
       attempts: 3
     })
