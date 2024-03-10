@@ -1,4 +1,5 @@
 export * from "./CarAssignApp"
+export * from "./CarReassignApp"
 export * from "./CarSyncApp"
 export * from "./CategoryCollectorApp"
 export * from "./DetailCollectorApp"

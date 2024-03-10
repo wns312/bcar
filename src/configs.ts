@@ -1,4 +1,4 @@
-const BCAR_ENV = process.env.NODE_ENV === undefined || process.env.NODE_ENV !== "prod" ? process.env : JSON.parse(process.env.BCAR_ENV!)
+const BCAR_ENV: NodeJS.ProcessEnv = process.env.NODE_ENV === undefined || process.env.NODE_ENV !== "prod" ? process.env : JSON.parse(process.env.BCAR_ENV!)
 
 const {
   SOURCE_ADMIN_ID,
