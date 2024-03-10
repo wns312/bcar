@@ -24,7 +24,7 @@ export class CarAssignService {
   }
 
   private static categorizeSourcesByKind(classifiedSources: UploadSource[]) {
-    const [importedSources, bongoPorterSources, largeTruckSources, domesticSourcesUnder1000, domesticSourcesUnder2500] = classifiedSources.reduce((list, source)=> {
+    const [importedSources, bongoPorterSources, largeTruckSources, domesticSourcesUnder1300, domesticSourcesUnder2500] = classifiedSources.reduce((list, source)=> {
       if (source.origin === Origin.Imported) {
         list[0].push(source)
       } else {
@@ -33,7 +33,7 @@ export class CarAssignService {
         } else if (CarAssignService.bigCarsRegex.test(source.car.title)) {
           list[2].push(source)
         } else {
-          if (source.car.price < 1000) {
+          if (source.car.price < 1300) {
             list[3].push(source)
           } else {
             list[4].push(source)
@@ -43,17 +43,17 @@ export class CarAssignService {
       return list
     }, [[], [], [], [], []] as [UploadSource[], UploadSource[], UploadSource[], UploadSource[], UploadSource[]])
 
-    return { importedSources, bongoPorterSources, largeTruckSources, domesticSourcesUnder1000, domesticSourcesUnder2500 }
+    return { importedSources, bongoPorterSources, largeTruckSources, domesticSourcesUnder1300, domesticSourcesUnder2500 }
   }
 
   private static calculateAssignCars(account: Account, acccountSources: UploadSource[], allSourceBundle: SourceBundle) {
-    const {bongoPorterSources, importedSources, largeTruckSources, domesticSourcesUnder1000, domesticSourcesUnder2500} = allSourceBundle
+    const {bongoPorterSources, importedSources, largeTruckSources, domesticSourcesUnder1300, domesticSourcesUnder2500} = allSourceBundle
     // 추가될 양 계산을 위해 카테고리화 하는것
     const {
       bongoPorterSources: ABPSources,
       importedSources: AISources,
       largeTruckSources: ALTSources,
-      domesticSourcesUnder1000: ADSourcesUnder1000,
+      domesticSourcesUnder1300: ADSourcesUnder1300,
       domesticSourcesUnder2500: ADSourcesUnder2500,
     } = CarAssignService.categorizeSourcesByKind(acccountSources)
 
@@ -61,20 +61,20 @@ export class CarAssignService {
     const importedAddAmount = account.importedAmount - AISources.length
     const bongoPorterAddAmount = account.bongoPorterAmount - ABPSources.length
     const largeTruckAddAmount = account.largeTruckAmount - ALTSources.length
-    const domesticAddAmountUnder1000 = account.domesticAmountUnder1000 - ADSourcesUnder1000.length
+    const domesticAddAmountUnder1300 = account.domesticAmountUnder1300 - ADSourcesUnder1300.length
     const domesticAddAmountUnder2500 = account.domesticAmountUnder2500 - ADSourcesUnder2500.length
 
-    const totalAssignedAmount = ABPSources.length + AISources.length + ALTSources.length + ADSourcesUnder1000.length + ADSourcesUnder2500.length
-    const totalAddAmount = bongoPorterAddAmount + importedAddAmount + largeTruckAddAmount + domesticAddAmountUnder1000 + domesticAddAmountUnder2500
+    const totalAssignedAmount = ABPSources.length + AISources.length + ALTSources.length + ADSourcesUnder1300.length + ADSourcesUnder2500.length
+    const totalAddAmount = bongoPorterAddAmount + importedAddAmount + largeTruckAddAmount + domesticAddAmountUnder1300 + domesticAddAmountUnder2500
 
-    console.log(bongoPorterSources.length, importedSources.length, largeTruckSources.length, domesticSourcesUnder1000.length, domesticSourcesUnder2500.length)
+    console.log(bongoPorterSources.length, importedSources.length, largeTruckSources.length, domesticSourcesUnder1300.length, domesticSourcesUnder2500.length)
     console.log("할당된 양: ", totalAssignedAmount)
     console.log("할당될 양: ", totalAddAmount)
 
     // 계산 후 할당 할 양을 잘라낸다.
     // 수입차, 화물, 봉고포터
     const splicedSpecialSources = importedSources.splice(0, importedAddAmount).concat(largeTruckSources.splice(0, largeTruckAddAmount)).concat(bongoPorterSources.splice(0, bongoPorterAddAmount))
-    const splicedDomesticSources = domesticSourcesUnder1000.splice(0, domesticAddAmountUnder1000).concat(domesticSourcesUnder2500.splice(0, domesticAddAmountUnder2500))
+    const splicedDomesticSources = domesticSourcesUnder1300.splice(0, domesticAddAmountUnder1300).concat(domesticSourcesUnder2500.splice(0, domesticAddAmountUnder2500))
     // 일반국내차량 계산 후 할당될 일반차량과 특수차량을 합침
     return splicedDomesticSources
       .concat(splicedSpecialSources)
@@ -108,13 +108,13 @@ export class CarAssignService {
   }
 
   private spliceSources(account: Account, accountSources: UploadSource[]) {
-    const { bongoPorterSources, importedSources, largeTruckSources, domesticSourcesUnder1000, domesticSourcesUnder2500 } = CarAssignService.categorizeSourcesByKind(accountSources)
+    const { bongoPorterSources, importedSources, largeTruckSources, domesticSourcesUnder1300, domesticSourcesUnder2500 } = CarAssignService.categorizeSourcesByKind(accountSources)
     importedSources.splice(0, account.importedAmount)
     largeTruckSources.splice(0, account.largeTruckAmount)
     bongoPorterSources.splice(0, account.bongoPorterAmount)
-    domesticSourcesUnder1000.splice(0, account.domesticAmountUnder1000)
+    domesticSourcesUnder1300.splice(0, account.domesticAmountUnder1300)
     domesticSourcesUnder2500.splice(0, account.domesticAmountUnder2500)
-    const domesticSources = domesticSourcesUnder1000.concat(domesticSourcesUnder2500)
+    const domesticSources = domesticSourcesUnder1300.concat(domesticSourcesUnder2500)
     return domesticSources.concat(largeTruckSources).concat(bongoPorterSources).concat(importedSources)
   }
 
