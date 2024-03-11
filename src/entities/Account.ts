@@ -8,7 +8,7 @@ interface IAccount {
   importedAmount: number
   largeTruckAmount: number
   domesticAmount: number
-  domesticAmountUnder1500: number
+  domesticAmountUnder1700: number
   domesticAmountUnder2500: number
 }
 
@@ -26,6 +26,6 @@ export class Account {
   importedAmount!: number
   largeTruckAmount!: number
   domesticAmount!: number
-  domesticAmountUnder1500!: number
+  domesticAmountUnder1700!: number
   domesticAmountUnder2500!: number
 }
