@@ -62,6 +62,6 @@ export interface SourceBundle {
   bongoPorterSources: UploadSource[]
   importedSources: UploadSource[]
   largeTruckSources: UploadSource[]
-  domesticSourcesUnder1500: UploadSource[]
+  domesticSourcesUnder1700: UploadSource[]
   domesticSourcesUnder2500: UploadSource[]
 }
