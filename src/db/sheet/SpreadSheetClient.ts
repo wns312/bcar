@@ -119,7 +119,7 @@ export class SheetClient {
     const values = response.data.values as string[][]
     const accountRawList = values?.splice(1)
     return this.accounts = accountRawList.map(
-      ([index, id, pw, region, ta, bpa, ia, lta, da, da1700, da2500]) => new Account({
+      ([index, id, pw, region, ta, bpa, ia, lta, da, da1300, da2500]) => new Account({
         id, pw, region,
         index: parseInt(index),
         totalAmount: parseInt(ta),
@@ -127,7 +127,7 @@ export class SheetClient {
         importedAmount: parseInt(ia),
         largeTruckAmount: parseInt(lta),
         domesticAmount: parseInt(da),
-        domesticAmountUnder1700: parseInt(da1700),
+        domesticAmountUnder1300: parseInt(da1300),
         domesticAmountUnder2500: parseInt(da2500),
       })
     )
